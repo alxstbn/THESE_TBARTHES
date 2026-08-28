@@ -1,7 +1,14 @@
 ---
+
+Analysis updated: 28 August 2026 — publication version
+
+# Study objective
+---
 title: "Clinical utility of routine pre-extubation respiratory sampling"
+Last update: 28 August 2026
 subtitle: "Statistical analysis — TIM POP study"
 author: "Alexandre Sitbon"
+contact: alexandre.sitbon@aphp.fr
 format:
   html:
     toc: true
