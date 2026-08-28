@@ -1,0 +1,2841 @@
+---
+title: "Clinical utility of routine pre-extubation respiratory sampling"
+subtitle: "Statistical analysis — TIM POP study"
+author: "Alexandre Sitbon"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-summary: "Show code"
+    embed-resources: true
+    df-print: paged
+execute:
+  warning: false
+  message: false
+---
+
+# Study objective
+
+Routine respiratory microbiological sampling is sometimes performed before extubation in postoperative patients without clinical suspicion of pneumonia.
+
+The primary hypothesis of this study is that **routine pre-extubation respiratory sampling has a low microbiological yield and limited clinical utility for the subsequent management of postoperative pneumonia (POP).**
+
+The analyses therefore focus on:
+
+1.  the frequency of pre-extubation respiratory sampling;
+2.  its microbiological yield;
+3.  the concordance between pre-extubation and subsequent POP microbiology;
+4.  the potential value of prior microbiological information for empirical antimicrobial therapy;
+5.  exploratory microbiological trajectories between pre-extubation sampling and POP.
+
+# 1. Data import and quality control
+
+## 1.1 Packages
+
+```{r}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(ggalluvial)
+```
+
+```{r}
+
+```
+
+```{r}
+
+```
+
+## 1.2 Import database
+
+```{r}
+data <- read_excel(
+  "data/TIM_POP_database_V1.xlsx",
+  sheet = "Inclusion"
+)
+```
+
+The database contains patients who developed postoperative pneumonia during the study period.
+
+Before performing any statistical analysis, we verify the number of observations, the number of variables, and the uniqueness of patient identifiers.
+
+```{r}
+qc_population <- data.frame(
+  Parameter = c(
+    "Number of observations",
+    "Number of variables",
+    "Unique patient identifiers",
+    "Duplicated patient identifiers"
+  ),
+  Value = c(
+    nrow(data),
+    ncol(data),
+    n_distinct(data$Numero),
+    sum(duplicated(data$Numero))
+  )
+)
+
+qc_population
+```
+
+### Interpretation
+
+The analytical database contains **`r nrow(data)` patients** and **`r ncol(data)` variables**. There are **`r n_distinct(data$Numero)` unique patient identifiers** and **`r sum(duplicated(data$Numero))` duplicated identifiers**.
+
+This confirms the integrity of the patient-level structure before subsequent analyses.
+
+# 2. Pre-extubation respiratory sampling practice
+
+## 2.1 Rationale
+
+The first question is not whether pre-extubation microbiology predicts subsequent POP microbiology, but rather **how frequently respiratory sampling was actually performed before extubation and what its microbiological yield was**.
+
+A pre-extubation sample is considered:
+
+- **not performed** when no sampling procedure is recorded;
+- **negative** when a sample was performed but no microorganism was isolated;
+- **positive** when at least one microorganism was isolated.
+
+## 2.2 Classification of pre-extubation samples
+
+```{r}
+data <- data |>
+  mutate(
+    preeot_status = case_when(
+      is.na(type_prelevement_preeot) ~ "Not performed",
+
+      pathogene_preeot > 0 |
+        pathogene_preeot_2 > 0 |
+        pathogene_preeot_3 > 0 ~ "Positive",
+
+      TRUE ~ "Negative"
+    ),
+    
+    preeot_status = factor(
+      preeot_status,
+      levels = c("Not performed", "Negative", "Positive")
+    )
+  )
+```
+
+We first examine the resulting distribution.
+
+```{r}
+table(data$preeot_status)
+```
+
+## 2.3 Summary of sampling practice
+
+```{r}
+sampling_summary <- data |>
+  count(preeot_status, name = "n") |>
+  mutate(
+    percent = 100 * n / sum(n)
+  )
+
+sampling_summary
+```
+
+The microbiological yield should specifically use **performed samples as the denominator**, rather than the entire cohort.
+
+```{r}
+n_total <- nrow(data)
+
+n_performed <- sum(
+  data$preeot_status %in% c("Negative", "Positive")
+)
+
+n_positive <- sum(
+  data$preeot_status == "Positive"
+)
+
+n_negative <- sum(
+  data$preeot_status == "Negative"
+)
+
+yield_preeot <- 100 * n_positive / n_performed
+```
+
+### Results
+
+Among the **`r n_total` patients** who subsequently developed POP, pre-extubation respiratory sampling was performed in **`r n_performed` (`r round(100*n_performed/n_total, 1)`%)**.
+
+Among performed samples, **`r n_positive` were positive** and **`r n_negative` were negative**, corresponding to a microbiological yield of **`r round(yield_preeot, 1)`%**.
+
+### Interpretation
+
+This analysis quantifies the actual microbiological yield of pre-extubation respiratory sampling.
+
+Importantly, patients without pre-extubation sampling are kept distinct from patients with a performed but negative sample. This distinction will be maintained throughout the analyses.
+
+At this stage, microbiological positivity alone should **not** be interpreted as evidence of infection, because sampling was performed before the diagnosis of POP and may primarily reflect airway colonisation.
+
+# 3. Visualisation of pre-extubation sampling practice
+
+```{r}
+sampling_plot <- sampling_summary |>
+  ggplot(
+    aes(
+      x = preeot_status,
+      y = percent
+    )
+  ) +
+  geom_col(
+    width = 0.65
+  ) +
+  geom_text(
+    aes(
+      label = paste0(n, " (", round(percent, 1), "%)")
+    ),
+    vjust = -0.5,
+    size = 4
+  ) +
+  labs(
+    title = "Pre-extubation respiratory sampling in patients with postoperative pneumonia",
+    x = NULL,
+    y = "Patients (%)"
+  ) +
+  theme_classic(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    axis.text.x = element_text(size = 11)
+  )
+
+sampling_plot
+```
+
+This figure provides the first overview of the sampling strategy and separates patients with no pre-extubation sample from those with negative or positive microbiological findings.
+
+### Interpretation
+
+Pre-extubation respiratory sampling was performed in more than half of patients who subsequently developed postoperative pneumonia. However, only **`r round(yield_preeot, 1)`%** of performed samples yielded at least one microorganism.
+
+This relatively low microbiological yield raises the question of whether routine pre-extubation sampling provides sufficiently actionable information to justify its systematic use in patients without clinical suspicion of pneumonia.
+
+```{r}
+preEOT_pos <- data |>
+  filter(
+    pathogene_preeot > 0 |
+      pathogene_preeot_2 > 0 |
+      pathogene_preeot_3 > 0
+  ) |>
+  select(
+    Numero,
+    pathogene_preeot,
+    pathogene_preeot_2,
+    pathogene_preeot_3,
+    pathogene_ppo,
+    pathogene_ppo_2,
+    pathogene_ppo_3
+  )
+
+preEOT_pos
+```
+
+```{r}
+preEOT_pos <- preEOT_pos |>
+  rowwise() |>
+  mutate(
+    concordant = {
+      pre <- c(
+        pathogene_preeot,
+        pathogene_preeot_2,
+        pathogene_preeot_3
+      )
+      
+      ppo <- c(
+        pathogene_ppo,
+        pathogene_ppo_2,
+        pathogene_ppo_3
+      )
+      
+      pre <- pre[!is.na(pre) & pre > 0]
+      ppo <- ppo[!is.na(ppo) & ppo > 0]
+      
+      length(intersect(pre, ppo)) > 0
+    }
+  ) |>
+  ungroup()
+
+table(preEOT_pos$concordant)
+
+preEOT_pos |>
+  dplyr::select(
+    Numero,
+    pathogene_preeot,
+    pathogene_preeot_2,
+    pathogene_preeot_3,
+    pathogene_ppo,
+    pathogene_ppo_2,
+    pathogene_ppo_3,
+    concordant
+  ) |>
+  print(n = Inf)
+
+table(preEOT_pos$concordant)
+```
+
+## 4. Microbiological concordance among positive pre-extubation samples
+
+Among patients with a positive pre-extubation sample, we assessed whether at least one microorganism isolated before extubation was subsequently recovered from the respiratory sample obtained at POP diagnosis.
+
+This analysis assesses microbiological persistence or overlap and should not, by itself, be interpreted as evidence that pre-extubation sampling was clinically useful.
+
+```{r}
+n_concordant <- sum(preEOT_pos$concordant)
+n_discordant <- sum(!preEOT_pos$concordant)
+
+prop_concordant <- 100 * n_concordant / nrow(preEOT_pos)
+
+concordance_ci <- binom.test(
+  n_concordant,
+  nrow(preEOT_pos)
+)$conf.int * 100
+```
+
+### Results
+
+Among the **`r nrow(preEOT_pos)` patients with positive pre-extubation microbiology**, at least one microorganism isolated before extubation was subsequently recovered at POP diagnosis in **`r n_concordant` patients (`r round(prop_concordant, 1)`%; 95% CI `r round(concordance_ci[1], 1)`–`r round(concordance_ci[2], 1)`%)**.
+
+No matching microorganism was identified in **`r n_discordant` patients (`r round(100*n_discordant/nrow(preEOT_pos), 1)`%)**.
+
+### Interpretation
+
+Although microbiological overlap was observed in approximately two-thirds of patients with a positive pre-extubation sample, this concerned only a small subset of the overall cohort because pre-extubation cultures were positive in only **`r n_positive` of `r n_performed` performed samples**.
+
+Microbiological concordance therefore represents only one component of clinical utility. The subsequent analyses will determine whether this prior information was sufficiently frequent and actionable to influence empirical antimicrobial management.
+
+```{r}
+n_not_sampled <- n_total - n_performed
+
+sankey_clinical <- data.frame(
+  pathway = c(
+    "No pre-EOT sample",
+    "Negative pre-EOT",
+    "Positive – matching",
+    "Positive – non-matching"
+  ),
+  n = c(
+    n_not_sampled,
+    n_negative,
+    n_concordant,
+    n_discordant
+  ),
+  cohort = rep("Patients with POP", 4),
+  sampling = c(
+    "Not sampled",
+    "Sampled",
+    "Sampled",
+    "Sampled"
+  ),
+  microbiology = c(
+    "Not sampled",
+    "Negative",
+    "Positive",
+    "Positive"
+  ),
+  subsequent_POP = c(
+    "Not applicable",
+    "No pre-EOT organism",
+    "≥1 matching organism",
+    "No matching organism"
+  )
+)
+
+sankey_clinical
+
+stopifnot(sum(sankey_clinical$n) == n_total)
+
+clinical_sankey <- ggplot(
+  sankey_clinical,
+  aes(
+    axis1 = cohort,
+    axis2 = sampling,
+    axis3 = microbiology,
+    axis4 = subsequent_POP,
+    y = n
+  )
+) +
+  geom_alluvium(
+    aes(fill = pathway),
+    width = 0.18,
+    alpha = 0.8
+  ) +
+  geom_stratum(
+    width = 0.18,
+    fill = "white",
+    colour = "grey30",
+    linewidth = 0.4
+  ) +
+  geom_text(
+    stat = "stratum",
+    aes(
+      label = paste0(
+        after_stat(stratum),
+        "\n(n=",
+        after_stat(count),
+        ")"
+      )
+    ),
+    size = 3.2,
+    lineheight = 0.9
+  ) +
+  scale_x_discrete(
+    limits = c(
+      "Study cohort",
+      "Pre-EOT sampling",
+      "Pre-EOT microbiology",
+      "Microbiological overlap"
+    ),
+    expand = c(0.06, 0.06)
+  ) +
+  labs(
+    title = "Clinical pathway of pre-extubation respiratory sampling",
+    subtitle = "Patients subsequently diagnosed with postoperative pneumonia",
+    x = NULL,
+    y = "Number of patients",
+    fill = NULL
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.line.y = element_blank(),
+    axis.text.x = element_text(
+      face = "bold",
+      size = 10
+    ),
+    legend.position = "bottom",
+    legend.text = element_text(size = 9),
+    plot.title = element_text(
+      face = "bold",
+      size = 14
+    ),
+    plot.subtitle = element_text(
+      size = 11
+    )
+  )
+
+clinical_sankey
+
+ggsave(
+  "figures/Figure_2_clinical_sankey.png",
+  clinical_sankey,
+  width = 11,
+  height = 6.5,
+  dpi = 600
+)
+```
+
+### Interpretation
+
+The clinical pathway highlights the progressive reduction in potentially informative microbiological data. Of **`r n_total` patients** who subsequently developed POP, only **`r n_performed`** underwent pre-extubation respiratory sampling, **`r n_positive`** had a positive culture, and only **`r n_concordant`** had at least one microorganism subsequently recovered at POP diagnosis.
+
+Thus, a matching pre-extubation microorganism was available in only **`r round(100*n_concordant/n_total, 1)`% of the overall POP cohort**.
+
+Whether these microbiological findings were actually actionable for empirical antimicrobial selection remains the clinically relevant question.
+
+## 6. Empirical antibiotic adequacy
+
+The principal measure of clinical utility was whether pre-extubation microbiological information was associated with, or could potentially have contributed to, appropriate empirical antimicrobial therapy at the time of POP diagnosis.
+
+Empirical therapy was considered adequate when all causative microorganisms subsequently identified were susceptible in vitro to at least one component of the initial empirical antimicrobial regimen.
+
+```{r}
+atb_summary <- data |>
+  filter(!is.na(adequation_antibiotherapie_probabiliste)) |>
+  count(
+    adequation_antibiotherapie_probabiliste,
+    name = "n"
+  ) |>
+  mutate(
+    status = if_else(
+      adequation_antibiotherapie_probabiliste == 1,
+      "Adequate",
+      "Inadequate"
+    ),
+    percent = 100 * n / sum(n)
+  )
+
+atb_summary
+
+n_atb_available <- sum(
+  !is.na(data$adequation_antibiotherapie_probabiliste)
+)
+
+n_atb_adequate <- sum(
+  data$adequation_antibiotherapie_probabiliste == 1,
+  na.rm = TRUE
+)
+
+n_atb_inadequate <- sum(
+  data$adequation_antibiotherapie_probabiliste == 0,
+  na.rm = TRUE
+)
+
+pct_atb_adequate <- 100 * n_atb_adequate / n_atb_available
+pct_atb_inadequate <- 100 * n_atb_inadequate / n_atb_available
+```
+
+### Overall empirical antibiotic adequacy
+
+Information on empirical antimicrobial adequacy was available for **`r n_atb_available` patients**.
+
+Empirical therapy was adequate in **`r n_atb_adequate` patients (`r round(pct_atb_adequate, 1)`%)** and inadequate in **`r n_atb_inadequate` patients (`r round(pct_atb_inadequate, 1)`%)**.
+
+```{r}
+atb_by_preeot <- data |>
+  filter(
+    !is.na(adequation_antibiotherapie_probabiliste)
+  ) |>
+  count(
+    preeot_status,
+    adequation_antibiotherapie_probabiliste,
+    name = "n"
+  ) |>
+  group_by(preeot_status) |>
+  mutate(
+    total = sum(n),
+    percent = 100 * n / total
+  ) |>
+  ungroup()
+
+atb_by_preeot
+
+atb_by_preeot_summary <- data |>
+  filter(
+    !is.na(adequation_antibiotherapie_probabiliste)
+  ) |>
+  group_by(preeot_status) |>
+  summarise(
+    n = n(),
+    adequate = sum(
+      adequation_antibiotherapie_probabiliste == 1
+    ),
+    inadequate = sum(
+      adequation_antibiotherapie_probabiliste == 0
+    ),
+    adequate_percent = 100 * adequate / n,
+    .groups = "drop"
+  )
+
+atb_by_preeot_summary
+```
+
+### Adequacy according to pre-extubation sampling
+
+Empirical antibiotic adequacy was then described according to whether pre-extubation respiratory sampling had not been performed, had been negative, or had yielded at least one microorganism.
+
+This comparison is descriptive. Because pre-extubation sampling was clinician-selected rather than protocolised, differences between groups cannot be interpreted causally.
+
+```{r}
+preEOT_clinical <- preEOT_pos |>
+  left_join(
+    data |>
+      select(
+        Numero,
+        adequation_antibiotherapie_probabiliste,
+        echec_traitement_initial,
+        adaptation_ATB_48h,
+        resistance_phenotypique_germe
+      ),
+    by = "Numero"
+  )
+
+preEOT_clinical
+
+adequacy_concordance <- preEOT_clinical |>
+  filter(
+    !is.na(adequation_antibiotherapie_probabiliste)
+  ) |>
+  group_by(concordant) |>
+  summarise(
+    n = n(),
+    adequate = sum(
+      adequation_antibiotherapie_probabiliste == 1
+    ),
+    inadequate = sum(
+      adequation_antibiotherapie_probabiliste == 0
+    ),
+    adequate_percent = 100 * adequate / n,
+    .groups = "drop"
+  )
+
+adequacy_concordance
+
+inadequate_cases <- data |>
+  filter(
+    adequation_antibiotherapie_probabiliste == 0
+  ) |>
+  select(
+    Numero,
+    preeot_status,
+    pathogene_preeot,
+    pathogene_preeot_2,
+    pathogene_preeot_3,
+    pathogene_ppo,
+    pathogene_ppo_2,
+    pathogene_ppo_3,
+    antibiotherapie_initiale,
+    antibiotherapie_initiale_2,
+    antibiotherapie_initiale_3,
+    resistance_phenotypique_germe,
+    echec_traitement_initial,
+    adaptation_ATB_48h
+  )
+
+inadequate_cases
+
+inadequate_with_positive_preeot <- inadequate_cases |>
+  filter(
+    preeot_status == "Positive"
+  )
+
+inadequate_with_positive_preeot
+
+inadequate_with_positive_preeot <- inadequate_with_positive_preeot |>
+  left_join(
+    preEOT_pos |>
+      select(
+        Numero,
+        concordant
+      ),
+    by = "Numero"
+  )
+
+inadequate_with_positive_preeot
+
+atb_summary
+atb_by_preeot_summary
+adequacy_concordance
+inadequate_with_positive_preeot
+```
+
+```{r}
+actionability_cases <- inadequate_with_positive_preeot |>
+  filter(concordant == TRUE) |>
+  select(
+    Numero,
+    pathogene_preeot,
+    pathogene_preeot_2,
+    pathogene_preeot_3,
+    pathogene_ppo,
+    pathogene_ppo_2,
+    pathogene_ppo_3,
+    antibiotherapie_initiale,
+    antibiotherapie_initiale_2,
+    antibiotherapie_initiale_3,
+    resistance_phenotypique_germe,
+    adaptation_ATB_48h,
+    echec_traitement_initial
+  )
+
+actionability_cases
+
+n_actionability_candidates <- nrow(actionability_cases)
+
+n_actionability_candidates
+```
+
+## 
+
+## 7. Potential impact on empirical antimicrobial therapy
+
+Among the 24 patients who received inadequate empirical antimicrobial therapy, only 5 (20.8%) had previously yielded a positive pre-extubation respiratory sample containing at least one microorganism subsequently recovered at POP diagnosis.
+
+These 5 patients represented only 4.1% of the overall cohort.
+
+Importantly, this represents a maximum estimate of potential clinical usefulness rather than demonstrated benefit, as microbiological concordance does not establish that susceptibility results were available before POP diagnosis or that they would have resulted in selection of an active empirical regimen.
+
+### Interpretation
+
+Despite pre-extubation respiratory sampling being performed in more than half of the cohort, only a very small proportion of patients had prior microbiological information that could potentially have been relevant to an episode of inadequate empirical antimicrobial therapy.
+
+These findings suggest limited clinical utility of routine pre-extubation respiratory sampling for guiding subsequent empirical treatment of postoperative pneumonia.
+
+```{r}
+pct_candidates_inadequate <- 
+  100 * n_actionability_candidates / n_atb_inadequate
+
+pct_candidates_total <- 
+  100 * n_actionability_candidates / n_total
+```
+
+Among the **`r n_atb_inadequate` patients** who received inadequate empirical antimicrobial therapy, only **`r n_actionability_candidates` (`r round(pct_candidates_inadequate, 1)`%)** had a positive pre-extubation sample containing at least one microorganism subsequently recovered during POP.
+
+These patients represented **`r round(pct_candidates_total, 1)`% of the overall cohort**.
+
+However, microbiological concordance alone does not establish that the pre-extubation result could have prevented inadequate empirical therapy. Clinical actionability requires confirmation that the relevant microbiological and susceptibility results were available before POP diagnosis and could reasonably have guided selection of an active antimicrobial regimen.
+
+```{r}
+actionability_cases |>
+  as.data.frame() |>
+  print(row.names = FALSE)
+actionability_cases_detail <- actionability_cases |>
+  select(Numero) |>
+  left_join(
+    data |>
+      select(
+        Numero,
+        date_prelevement_preeot,
+        heure_prelevement_preeot,
+        date_diagnostic_ppo,
+        pathogene_preeot,
+        pathogene_preeot_2,
+        pathogene_preeot_3,
+        pathogene_ppo,
+        pathogene_ppo_2,
+        pathogene_ppo_3,
+        antibiotherapie_initiale,
+        antibiotherapie_initiale_2,
+        antibiotherapie_initiale_3,
+        resistance_phenotypique_germe
+      ),
+    by = "Numero"
+  )
+
+actionability_cases_detail |>
+  as.data.frame() |>
+  print(row.names = FALSE)
+```
+
+```{r}
+pathogen_labels <- c(
+  `0`  = "No microorganism",
+  `1`  = "MSSA",
+  `2`  = "Oropharyngeal flora",
+  `3`  = "Enterococcus faecium",
+  `4`  = "Citrobacter freundii",
+  `5`  = "Hafnia alvei",
+  `6`  = "Klebsiella pneumoniae",
+  `7`  = "Escherichia coli",
+  `8`  = "Pseudomonas aeruginosa",
+  `9`  = "Proteus mirabilis",
+  `10` = "Corynebacterium spp.",
+  `11` = "Serratia marcescens",
+  `12` = "Enterobacter aerogenes",
+  `13` = "Enterococcus faecalis",
+  `14` = "Haemophilus haemolyticus",
+  `15` = "Acinetobacter baumannii",
+  `16` = "Staphylococcus epidermidis",
+  `17` = "Moraxella catarrhalis",
+  `18` = "Staphylococcus haemolyticus",
+  `19` = "Mycoplasma pneumoniae",
+  `20` = "Enterobacter cloacae"
+)
+label_pathogen <- function(x) {
+  unname(pathogen_labels[as.character(x)])
+}
+actionability_readable <- actionability_cases |>
+  mutate(
+    preEOT_1 = label_pathogen(pathogene_preeot),
+    preEOT_2 = label_pathogen(pathogene_preeot_2),
+    POP_1 = label_pathogen(pathogene_ppo),
+    POP_2 = label_pathogen(pathogene_ppo_2),
+    POP_3 = label_pathogen(pathogene_ppo_3)
+  ) |>
+  select(
+    Numero,
+    preEOT_1,
+    preEOT_2,
+    POP_1,
+    POP_2,
+    POP_3,
+    resistance_phenotypique_germe,
+    adaptation_ATB_48h,
+    echec_traitement_initial
+  )
+
+actionability_readable
+```
+
+```{r}
+preEOT_pos_readable <- preEOT_pos |>
+  mutate(
+    preEOT_1 = label_pathogen(pathogene_preeot),
+    preEOT_2 = label_pathogen(pathogene_preeot_2),
+    preEOT_3 = label_pathogen(pathogene_preeot_3),
+    POP_1 = label_pathogen(pathogene_ppo),
+    POP_2 = label_pathogen(pathogene_ppo_2),
+    POP_3 = label_pathogen(pathogene_ppo_3)
+  ) |>
+  select(
+    Numero,
+    preEOT_1,
+    preEOT_2,
+    preEOT_3,
+    POP_1,
+    POP_2,
+    POP_3,
+    concordant
+  )
+
+preEOT_pos_readable |>
+  print(n = Inf)
+```
+
+## 8. Microbiological ecology
+
+We next described the microorganisms recovered from pre-extubation respiratory samples and from respiratory samples obtained at POP diagnosis.
+
+Because several respiratory samples were polymicrobial, analyses were performed at the microorganism level. These analyses are descriptive and exploratory.
+
+```{r}
+preeot_micro_long <- preEOT_pos |>
+  select(
+    Numero,
+    pathogene_preeot,
+    pathogene_preeot_2,
+    pathogene_preeot_3
+  ) |>
+  pivot_longer(
+    cols = starts_with("pathogene_preeot"),
+    names_to = "rank",
+    values_to = "pathogen_code"
+  ) |>
+  filter(
+    !is.na(pathogen_code),
+    pathogen_code > 0
+  ) |>
+  mutate(
+    pathogen = label_pathogen(pathogen_code)
+  )
+
+preeot_micro_summary <- preeot_micro_long |>
+  count(pathogen, sort = TRUE, name = "n")
+
+preeot_micro_summary
+
+fig_preeot_micro <- preeot_micro_summary |>
+  ggplot(
+    aes(
+      x = reorder(pathogen, n),
+      y = n
+    )
+  ) +
+  geom_col(width = 0.7) +
+  geom_text(
+    aes(label = n),
+    hjust = -0.25,
+    size = 3.5
+  ) +
+  coord_flip() +
+  labs(
+    title = "Microorganisms isolated before extubation",
+    subtitle = "Positive pre-extubation respiratory samples",
+    x = NULL,
+    y = "Number of isolates"
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold")
+  ) +
+  expand_limits(
+    y = max(preeot_micro_summary$n) + 1
+  )
+
+fig_preeot_micro
+
+ggsave(
+  "figures/Figure_S1_preEOT_microbiology.png",
+  fig_preeot_micro,
+  width = 8,
+  height = 5.5,
+  dpi = 600
+)
+
+pop_micro_long <- data |>
+  select(
+    Numero,
+    pathogene_ppo,
+    pathogene_ppo_2,
+    pathogene_ppo_3
+  ) |>
+  pivot_longer(
+    cols = starts_with("pathogene_ppo"),
+    names_to = "rank",
+    values_to = "pathogen_code"
+  ) |>
+  filter(
+    !is.na(pathogen_code),
+    pathogen_code > 0
+  ) |>
+  mutate(
+    pathogen = label_pathogen(pathogen_code)
+  )
+
+pop_micro_summary <- pop_micro_long |>
+  count(pathogen, sort = TRUE, name = "n")
+
+pop_micro_summary
+
+fig_pop_micro <- pop_micro_summary |>
+  ggplot(
+    aes(
+      x = reorder(pathogen, n),
+      y = n
+    )
+  ) +
+  geom_col(width = 0.7) +
+  geom_text(
+    aes(label = n),
+    hjust = -0.25,
+    size = 3.5
+  ) +
+  coord_flip() +
+  labs(
+    title = "Microorganisms isolated at postoperative pneumonia diagnosis",
+    x = NULL,
+    y = "Number of isolates"
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    plot.title = element_text(face = "bold")
+  ) +
+  expand_limits(
+    y = max(pop_micro_summary$n) + 2
+  )
+
+fig_pop_micro
+
+ggsave(
+  "figures/Figure_S2_POP_microbiology.png",
+  fig_pop_micro,
+  width = 8,
+  height = 6,
+  dpi = 600
+)
+
+preEOT_pos <- preEOT_pos |>
+  rowwise() |>
+  mutate(
+    concordant_without_FOP = {
+      
+      pre <- c(
+        pathogene_preeot,
+        pathogene_preeot_2,
+        pathogene_preeot_3
+      )
+      
+      ppo <- c(
+        pathogene_ppo,
+        pathogene_ppo_2,
+        pathogene_ppo_3
+      )
+      
+      pre <- pre[
+        !is.na(pre) &
+          pre > 0 &
+          pre != 2
+      ]
+      
+      ppo <- ppo[
+        !is.na(ppo) &
+          ppo > 0 &
+          ppo != 2
+      ]
+      
+      length(intersect(pre, ppo)) > 0
+    }
+  ) |>
+  ungroup()
+
+concordance_sensitivity <- preEOT_pos |>
+  summarise(
+    n_positive = n(),
+    any_matching = sum(concordant),
+    any_matching_percent = 100 * mean(concordant),
+    matching_excluding_FOP = sum(concordant_without_FOP),
+    matching_excluding_FOP_percent =
+      100 * mean(concordant_without_FOP)
+  )
+
+concordance_sensitivity
+
+preEOT_pos |>
+  mutate(
+    preEOT_1 = label_pathogen(pathogene_preeot),
+    preEOT_2 = label_pathogen(pathogene_preeot_2),
+    POP_1 = label_pathogen(pathogene_ppo),
+    POP_2 = label_pathogen(pathogene_ppo_2),
+    POP_3 = label_pathogen(pathogene_ppo_3)
+  ) |>
+  select(
+    Numero,
+    preEOT_1,
+    preEOT_2,
+    POP_1,
+    POP_2,
+    POP_3,
+    concordant,
+    concordant_without_FOP
+  ) |>
+  print(n = Inf)
+```
+
+### Sensitivity analysis excluding oropharyngeal flora
+
+Because concordance involving non-specific oropharyngeal flora may have limited organism-specific interpretability, we performed an exploratory sensitivity analysis in which code 2 ("oropharyngeal flora") was not considered evidence of organism-level microbiological concordance.
+
+This analysis was exploratory and did not replace the primary definition of concordance.
+
+```{r}
+preeot_micro_summary
+pop_micro_summary
+concordance_sensitivity
+```
+
+### Microbiological concordance and sensitivity analysis
+
+Among the 20 patients with positive pre-extubation microbiology, 22 microorganisms were isolated. Oropharyngeal flora was the most frequent finding, accounting for 10 of 22 pre-extubation isolates.
+
+Using the broad definition of microbiological concordance, at least one matching microorganism was identified at subsequent POP diagnosis in **13 of 20 patients (65.0%)**.
+
+However, when non-specific oropharyngeal flora was excluded from the definition of organism-level concordance, only **9 of 20 patients (45.0%)** had a specific microorganism recovered both before extubation and at POP diagnosis.
+
+These 9 patients represented only **7.4% of the overall cohort**.
+
+### Interpretation
+
+The apparent microbiological concordance between pre-extubation and subsequent POP samples was partly driven by non-specific oropharyngeal flora. When concordance was restricted to identified microorganisms, fewer than half of patients with a positive pre-extubation sample had a matching organism at POP diagnosis.
+
+Given the low initial microbiological yield of pre-extubation sampling, a specific matching microorganism was therefore available before POP diagnosis in only a small minority of the overall cohort.
+
+```{r}
+micro_trajectories <- preEOT_pos |>
+  rowwise() |>
+  mutate(
+    preEOT_microbiology = paste(
+      na.omit(c(
+        label_pathogen(pathogene_preeot),
+        label_pathogen(pathogene_preeot_2),
+        label_pathogen(pathogene_preeot_3)
+      )),
+      collapse = " + "
+    ),
+    
+    POP_microbiology = paste(
+      na.omit(c(
+        label_pathogen(pathogene_ppo),
+        label_pathogen(pathogene_ppo_2),
+        label_pathogen(pathogene_ppo_3)
+      )),
+      collapse = " + "
+    )
+  ) |>
+  ungroup() |>
+  mutate(
+    POP_microbiology = if_else(
+      POP_microbiology == "No microorganism" |
+        POP_microbiology == "",
+      "No microorganism isolated",
+      POP_microbiology
+    )
+  ) |>
+  count(
+    preEOT_microbiology,
+    POP_microbiology,
+    name = "n"
+  )
+
+micro_trajectories
+
+stopifnot(sum(micro_trajectories$n) == 20)
+
+fig_micro_sankey <- ggplot(
+  micro_trajectories,
+  aes(
+    axis1 = preEOT_microbiology,
+    axis2 = POP_microbiology,
+    y = n
+  )
+) +
+  geom_alluvium(
+    aes(fill = preEOT_microbiology),
+    width = 0.15,
+    alpha = 0.75
+  ) +
+  geom_stratum(
+    width = 0.15,
+    fill = "white",
+    colour = "grey30",
+    linewidth = 0.4
+  ) +
+  geom_text(
+    stat = "stratum",
+    aes(label = after_stat(stratum)),
+    size = 3
+  ) +
+  scale_x_discrete(
+    limits = c(
+      "Pre-extubation",
+      "Postoperative pneumonia"
+    ),
+    expand = c(0.12, 0.12)
+  ) +
+  labs(
+    title = "Microbiological trajectories from pre-extubation sampling to postoperative pneumonia",
+    subtitle = "Exploratory analysis restricted to patients with positive pre-extubation microbiology (n = 20)",
+    x = NULL,
+    y = "Patients",
+    fill = "Pre-extubation microbiology"
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.line.y = element_blank(),
+    axis.text.x = element_text(
+      face = "bold",
+      size = 11
+    ),
+    legend.position = "none",
+    plot.title = element_text(
+      face = "bold",
+      size = 13
+    )
+  )
+
+fig_micro_sankey
+
+ggsave(
+  "figures/Figure_S3_microbiological_sankey.png",
+  fig_micro_sankey,
+  width = 12,
+  height = 7,
+  dpi = 600
+)
+```
+
+### Microbiological trajectories according to organism-specific concordance
+
+Microbiological trajectories were visualised among patients with positive pre-extubation samples. Flows were classified according to organism-specific concordance, defined as recovery of at least one identical microorganism before extubation and at POP diagnosis after excluding non-specific oropharyngeal flora.
+
+```{r}
+# Labels courts uniquement pour la figure Sankey
+pathogen_labels_short <- c(
+  `0`  = "No organism",
+  `1`  = "MSSA",
+  `2`  = "Oropharyngeal\nflora",
+  `3`  = "E. faecium",
+  `4`  = "C. freundii",
+  `5`  = "H. alvei",
+  `6`  = "K. pneumoniae",
+  `7`  = "E. coli",
+  `8`  = "P. aeruginosa",
+  `9`  = "P. mirabilis",
+  `10` = "Corynebacterium",
+  `11` = "S. marcescens",
+  `12` = "E. aerogenes",
+  `13` = "E. faecalis",
+  `14` = "H. haemolyticus",
+  `15` = "A. baumannii",
+  `16` = "S. epidermidis",
+  `17` = "M. catarrhalis",
+  `18` = "S. haemolyticus",
+  `19` = "M. pneumoniae",
+  `20` = "E. cloacae"
+)
+
+label_pathogen_short <- function(x) {
+  unname(pathogen_labels_short[as.character(x)])
+}
+micro_trajectories <- preEOT_pos |>
+  rowwise() |>
+  mutate(
+    preEOT_microbiology = paste(
+      na.omit(c(
+        label_pathogen_short(pathogene_preeot),
+        label_pathogen_short(pathogene_preeot_2),
+        label_pathogen_short(pathogene_preeot_3)
+      )),
+      collapse = "\n+\n"
+    ),
+    
+    POP_microbiology = paste(
+      na.omit(c(
+        label_pathogen_short(pathogene_ppo),
+        label_pathogen_short(pathogene_ppo_2),
+        label_pathogen_short(pathogene_ppo_3)
+      )),
+      collapse = "\n+\n"
+    ),
+    
+    concordance_group = if_else(
+      concordant_without_FOP,
+      "Specific concordance",
+      "No specific concordance"
+    )
+  ) |>
+  ungroup() |>
+  mutate(
+    POP_microbiology = if_else(
+      POP_microbiology == "" |
+        POP_microbiology == "No organism",
+      "No organism\nisolated",
+      POP_microbiology
+    )
+  ) |>
+  count(
+    preEOT_microbiology,
+    POP_microbiology,
+    concordance_group,
+    name = "n"
+  )
+
+stopifnot(sum(micro_trajectories$n) == 20)
+left_order <- micro_trajectories |>
+  group_by(preEOT_microbiology) |>
+  summarise(total = sum(n), .groups = "drop") |>
+  arrange(desc(total)) |>
+  pull(preEOT_microbiology)
+
+right_order <- micro_trajectories |>
+  group_by(POP_microbiology) |>
+  summarise(total = sum(n), .groups = "drop") |>
+  arrange(desc(total)) |>
+  pull(POP_microbiology)
+
+micro_trajectories <- micro_trajectories |>
+  mutate(
+    preEOT_microbiology = factor(
+      preEOT_microbiology,
+      levels = rev(left_order)
+    ),
+    POP_microbiology = factor(
+      POP_microbiology,
+      levels = rev(right_order)
+    )
+  )
+
+fig_micro_sankey <- ggplot(
+  micro_trajectories,
+  aes(
+    axis1 = preEOT_microbiology,
+    axis2 = POP_microbiology,
+    y = n
+  )
+) +
+  geom_alluvium(
+    aes(fill = concordance_group),
+    width = 0.22,
+    alpha = 0.75
+  ) +
+  geom_stratum(
+    width = 0.22,
+    fill = "white",
+    colour = "grey35",
+    linewidth = 0.4
+  ) +
+  geom_text(
+    stat = "stratum",
+    aes(
+      label = paste0(
+        after_stat(stratum),
+        "\n(n=", after_stat(count), ")"
+      )
+    ),
+    size = 2.6,
+    lineheight = 0.85
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Specific concordance" = "#2E8B57",
+      "No specific concordance" = "#C94C4C"
+    )
+  ) +
+  scale_x_discrete(
+    limits = c(
+      "Pre-extubation",
+      "Postoperative pneumonia"
+    ),
+    expand = c(0.18, 0.18)
+  ) +
+  labs(
+    title = "Microbiological trajectories before extubation and at POP diagnosis",
+    subtitle = "Positive pre-extubation respiratory samples (n = 20)",
+    x = NULL,
+    y = "Number of patients",
+    fill = NULL
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.line.y = element_blank(),
+    
+    axis.text.x = element_text(
+      face = "bold",
+      size = 11
+    ),
+    
+    legend.position = "bottom",
+    
+    plot.title = element_text(
+      face = "bold",
+      size = 13
+    ),
+    
+    plot.subtitle = element_text(
+      size = 11
+    ),
+    
+    plot.margin = margin(
+      t = 15,
+      r = 80,
+      b = 15,
+      l = 80
+    )
+  )
+
+fig_micro_sankey
+
+ggsave(
+  "figures/Figure_S3_microbiological_sankey_concordance.png",
+  fig_micro_sankey,
+  width = 16,
+  height = 10,
+  dpi = 600
+)
+```
+
+### Interpretation
+
+Despite restricting the analysis to patients with positive pre-extubation microbiology, organism-specific concordance was observed in only **`r sum(preEOT_pos$concordant_without_FOP)` of `r nrow(preEOT_pos)` patients (`r round(100*mean(preEOT_pos$concordant_without_FOP), 1)`%)**.
+
+The Sankey plot illustrates the substantial microbiological turnover between pre-extubation respiratory sampling and subsequent POP. More than half of positive pre-extubation samples did not provide a specific microorganism subsequently recovered at POP diagnosis.
+
+# 9. Antimicrobial resistance and empirical treatment inadequacy
+
+We next examined antimicrobial resistance and its association with empirical antimicrobial inadequacy among patients with POP.
+
+Because `echec_traitement_initial` was exactly complementary to `adequation_antibiotherapie_probabiliste` in all patients with available data, these variables represented the same underlying endpoint and were not analysed separately.
+
+The analysis therefore focused on empirical antimicrobial inadequacy as the clinically relevant outcome.
+
+```{r}
+data <- data |>
+  mutate(
+    resistance_status = case_when(
+      resistance_phenotypique_germe == 0 ~ "No reported resistance",
+      resistance_phenotypique_germe == 1 ~ "ESBL",
+      resistance_phenotypique_germe == 2 ~ "Carbapenemase",
+      resistance_phenotypique_germe == 3 ~ "Other resistance",
+      TRUE ~ NA_character_
+    ),
+    
+    any_resistance = case_when(
+      resistance_phenotypique_germe == 0 ~ 0,
+      resistance_phenotypique_germe %in% c(1, 2, 3) ~ 1,
+      TRUE ~ NA_real_
+    )
+  )
+resistance_summary <- data |>
+  filter(!is.na(resistance_status)) |>
+  count(
+    resistance_status,
+    name = "n"
+  ) |>
+  mutate(
+    percent = 100 * n / sum(n)
+  )
+
+resistance_summary
+n_resistance_available <- sum(!is.na(data$any_resistance))
+
+n_resistant <- sum(
+  data$any_resistance == 1,
+  na.rm = TRUE
+)
+
+pct_resistant <- 100 * n_resistant / n_resistance_available
+```
+
+### Antimicrobial resistance
+
+Resistance phenotype information was available for **`r n_resistance_available` patients**. At least one reported resistance phenotype was present in **`r n_resistant` patients (`r round(pct_resistant, 1)`%)**.
+
+The distribution of resistance phenotypes is shown below.
+
+`r knitr::kable(resistance_summary, digits = 1)`
+
+```{r}
+failure_summary <- data |>
+  filter(!is.na(echec_traitement_initial)) |>
+  count(
+    echec_traitement_initial,
+    name = "n"
+  ) |>
+  mutate(
+    status = if_else(
+      echec_traitement_initial == 1,
+      "Initial treatment failure",
+      "No initial treatment failure"
+    ),
+    percent = 100 * n / sum(n)
+  )
+
+failure_summary
+n_failure_available <- sum(
+  !is.na(data$echec_traitement_initial)
+)
+
+n_failure <- sum(
+  data$echec_traitement_initial == 1,
+  na.rm = TRUE
+)
+
+pct_failure <- 100 * n_failure / n_failure_available
+```
+
+### Initial treatment failure
+
+Initial treatment failure could be assessed in **`r n_failure_available` patients** and occurred in **`r n_failure` patients (`r round(pct_failure, 1)`%)**.
+
+```{r}
+resistance_failure <- data |>
+  filter(
+    !is.na(any_resistance),
+    !is.na(echec_traitement_initial)
+  ) |>
+  group_by(any_resistance) |>
+  summarise(
+    n = n(),
+    treatment_failure = sum(
+      echec_traitement_initial == 1
+    ),
+    no_failure = sum(
+      echec_traitement_initial == 0
+    ),
+    failure_percent = 100 * treatment_failure / n,
+    .groups = "drop"
+  ) |>
+  mutate(
+    resistance = if_else(
+      any_resistance == 1,
+      "Resistance present",
+      "No reported resistance"
+    )
+  )
+
+resistance_failure
+table_resistance_failure <- table(
+  data$any_resistance,
+  data$echec_traitement_initial,
+  useNA = "no"
+)
+
+table_resistance_failure
+fisher_resistance_failure <- fisher.test(
+  table_resistance_failure
+)
+
+fisher_resistance_failure
+OR_resistance <- unname(
+  fisher_resistance_failure$estimate
+)
+
+CI_resistance <- fisher_resistance_failure$conf.int
+
+p_resistance <- fisher_resistance_failure$p.value
+
+resistance_summary
+failure_summary
+resistance_failure
+fisher_resistance_failure
+```
+
+### Association between antimicrobial resistance and initial treatment failure
+
+The association between the presence of a reported antimicrobial resistance phenotype and initial treatment failure was assessed using Fisher's exact test because of the limited number of events.
+
+Patients with antimicrobial resistance had an odds ratio for initial treatment failure of **`r round(OR_resistance, 2)`** compared with patients without reported resistance (95% CI **`r round(CI_resistance[1], 2)`–`r round(CI_resistance[2], 2)`**; *P* = **`r format.pval(p_resistance, digits = 3, eps = 0.001)`**).
+
+This unadjusted association should be interpreted as exploratory and does not establish an independent effect of antimicrobial resistance.
+
+```{r}
+table(
+  Adequacy = data$adequation_antibiotherapie_probabiliste,
+  Initial_failure = data$echec_traitement_initial,
+  useNA = "ifany"
+)
+data |>
+  filter(
+    !is.na(adequation_antibiotherapie_probabiliste),
+    !is.na(echec_traitement_initial)
+  ) |>
+  summarise(
+    n = n(),
+    discordant = sum(
+      adequation_antibiotherapie_probabiliste ==
+        echec_traitement_initial
+    )
+  )
+data |>
+  filter(
+    !is.na(adequation_antibiotherapie_probabiliste),
+    !is.na(echec_traitement_initial)
+  ) |>
+  summarise(
+    n = n(),
+    coherent = sum(
+      echec_traitement_initial ==
+        (1 - adequation_antibiotherapie_probabiliste)
+    ),
+    coherent_percent = 100 * coherent / n
+  )
+```
+
+### Association between antimicrobial resistance and empirical treatment adequacy
+
+Among patients with available resistance and treatment adequacy data, inadequate empirical antimicrobial therapy occurred in **13/29 (44.8%)** patients with a reported antimicrobial resistance phenotype compared with **10/70 (14.3%)** patients without reported resistance.
+
+The presence of antimicrobial resistance was associated with higher odds of inadequate empirical antimicrobial therapy (OR **4.78**, 95% CI **1.61–14.79**; *P* = **0.003**).
+
+```{r}
+resistance_inadequacy <- data |>
+  filter(
+    !is.na(any_resistance),
+    !is.na(adequation_antibiotherapie_probabiliste)
+  ) |>
+  group_by(any_resistance) |>
+  summarise(
+    n = n(),
+    inadequate = sum(
+      adequation_antibiotherapie_probabiliste == 0
+    ),
+    adequate = sum(
+      adequation_antibiotherapie_probabiliste == 1
+    ),
+    inadequacy_percent = 100 * inadequate / n,
+    .groups = "drop"
+  ) |>
+  mutate(
+    resistance = if_else(
+      any_resistance == 1,
+      "Resistance present",
+      "No reported resistance"
+    )
+  )
+
+resistance_inadequacy
+
+table_resistance_inadequacy <- table(
+  data$any_resistance,
+  data$adequation_antibiotherapie_probabiliste,
+  useNA = "no"
+)
+
+table_resistance_inadequacy
+table_resistance_inadequacy <- table(
+  Resistance = data$any_resistance,
+  Inadequate = 1 - data$adequation_antibiotherapie_probabiliste,
+  useNA = "no"
+)
+
+fisher_resistance_inadequacy <- fisher.test(
+  table_resistance_inadequacy
+)
+
+OR_resistance <- unname(
+  fisher_resistance_inadequacy$estimate
+)
+
+CI_resistance <- fisher_resistance_inadequacy$conf.int
+p_resistance <- fisher_resistance_inadequacy$p.value
+```
+
+### Association between antimicrobial resistance and empirical treatment inadequacy
+
+Among patients with available resistance and treatment adequacy data, inadequate empirical antimicrobial therapy occurred in **13/29 (44.8%)** patients with a reported antimicrobial resistance phenotype compared with **10/70 (14.3%)** patients without reported resistance.
+
+The presence of antimicrobial resistance was associated with higher odds of inadequate empirical antimicrobial therapy (OR **4.78**, 95% CI **1.61–14.79**; *P* = **0.003**).
+
+# 10. Antimicrobial adaptation at 48 hours
+
+We next assessed antimicrobial adaptation at 48 hours as a pragmatic marker of downstream treatment modification.
+
+This analysis explored whether pre-extubation microbiological information, particularly positive or concordant findings, was associated with subsequent antimicrobial adaptation.
+
+```{r}
+adaptation_summary <- data |>
+  filter(!is.na(adaptation_ATB_48h)) |>
+  count(
+    adaptation_ATB_48h,
+    name = "n"
+  ) |>
+  mutate(
+    status = if_else(
+      adaptation_ATB_48h == 1,
+      "Antimicrobial adaptation at 48 h",
+      "No adaptation at 48 h"
+    ),
+    percent = 100 * n / sum(n)
+  )
+
+adaptation_summary
+n_adaptation_available <- sum(
+  !is.na(data$adaptation_ATB_48h)
+)
+
+n_adapted <- sum(
+  data$adaptation_ATB_48h == 1,
+  na.rm = TRUE
+)
+
+pct_adapted <- 100 * n_adapted / n_adaptation_available
+
+```
+
+### Overall antimicrobial adaptation
+
+Information on antimicrobial adaptation at 48 hours was available for **`r n_adaptation_available` patients**.
+
+Antimicrobial therapy was adapted within 48 hours in **`r n_adapted` patients (`r round(pct_adapted, 1)`%)**.
+
+```{r}
+adaptation_by_preeot <- data |>
+  filter(!is.na(adaptation_ATB_48h)) |>
+  group_by(preeot_status) |>
+  summarise(
+    n = n(),
+    adapted = sum(adaptation_ATB_48h == 1),
+    not_adapted = sum(adaptation_ATB_48h == 0),
+    adapted_percent = 100 * adapted / n,
+    .groups = "drop"
+  )
+
+adaptation_by_preeot
+table_adaptation_preeot <- table(
+  data$preeot_status,
+  data$adaptation_ATB_48h,
+  useNA = "no"
+)
+
+fisher_adaptation_preeot <- fisher.test(
+  table_adaptation_preeot
+)
+
+fisher_adaptation_preeot
+```
+
+### Adaptation according to pre-extubation sampling
+
+Antimicrobial adaptation at 48 hours was described according to pre-extubation sampling status.
+
+Because sampling before extubation was not protocolised and was clinician-selected, any association between sampling status and subsequent antimicrobial adaptation should be interpreted descriptively rather than causally.
+
+```{r}
+adaptation_positive_preeot <- preEOT_clinical |>
+  filter(!is.na(adaptation_ATB_48h)) |>
+  summarise(
+    n = n(),
+    adapted = sum(adaptation_ATB_48h == 1),
+    not_adapted = sum(adaptation_ATB_48h == 0),
+    adapted_percent = 100 * adapted / n
+  )
+
+adaptation_positive_preeot
+adaptation_by_concordance <- preEOT_clinical |>
+  filter(!is.na(adaptation_ATB_48h)) |>
+  group_by(concordant) |>
+  summarise(
+    n = n(),
+    adapted = sum(adaptation_ATB_48h == 1),
+    not_adapted = sum(adaptation_ATB_48h == 0),
+    adapted_percent = 100 * adapted / n,
+    .groups = "drop"
+  )
+
+adaptation_by_concordance
+adaptation_specific_concordance <- preEOT_clinical |>
+  left_join(
+    preEOT_pos |>
+      select(
+        Numero,
+        concordant_without_FOP
+      ),
+    by = "Numero"
+  ) |>
+  filter(!is.na(adaptation_ATB_48h)) |>
+  group_by(concordant_without_FOP) |>
+  summarise(
+    n = n(),
+    adapted = sum(adaptation_ATB_48h == 1),
+    not_adapted = sum(adaptation_ATB_48h == 0),
+    adapted_percent = 100 * adapted / n,
+    .groups = "drop"
+  )
+
+adaptation_specific_concordance
+adaptation_summary
+adaptation_by_preeot
+adaptation_positive_preeot
+adaptation_by_concordance
+adaptation_specific_concordance
+fisher_adaptation_preeot
+```
+
+### Interpretation
+
+Antimicrobial therapy was frequently modified within 48 hours of POP diagnosis. However, the frequency of antimicrobial adaptation did not differ according to pre-extubation sampling status (Fisher's exact test, *P* = **`r format.pval(fisher_adaptation_preeot$p.value, digits = 3)`**).
+
+Among the small subgroup of patients with positive pre-extubation microbiology, antimicrobial adaptation was more frequent when a matching microorganism was subsequently recovered at POP diagnosis. This pattern was also observed when concordance was restricted to specific microorganisms excluding oropharyngeal flora.
+
+Given the limited number of patients with positive pre-extubation microbiology, these subgroup findings should be considered exploratory.
+
+# 11. Clinical outcomes according to empirical antimicrobial adequacy
+
+We next explored whether inadequate empirical antimicrobial therapy was associated with clinically relevant outcomes.
+
+These analyses were secondary and exploratory and included ICU length of stay, hospital length of stay, ICU and hospital mortality, and POP recurrence.
+
+```{r}
+outcomes_summary <- data |>
+  summarise(
+    ICU_LOS_available =
+      sum(!is.na(duree_sejour_reanimation)),
+    
+    hospital_LOS_available =
+      sum(!is.na(duree_sejour_hopital)),
+    
+    ICU_mortality_available =
+      sum(!is.na(dc_reanimation)),
+    
+    hospital_mortality_available =
+      sum(!is.na(dc_hopital)),
+    
+    POP_recurrence_available =
+      sum(!is.na(recidive_ppo))
+  )
+
+outcomes_summary
+outcomes_events <- data |>
+  summarise(
+    ICU_deaths =
+      sum(dc_reanimation == 1, na.rm = TRUE),
+    
+    hospital_deaths =
+      sum(dc_hopital == 1, na.rm = TRUE),
+    
+    POP_recurrences =
+      sum(recidive_ppo == 1, na.rm = TRUE)
+  )
+
+outcomes_events
+los_by_adequacy <- data |>
+  filter(
+    !is.na(adequation_antibiotherapie_probabiliste)
+  ) |>
+  mutate(
+    empirical_therapy = if_else(
+      adequation_antibiotherapie_probabiliste == 1,
+      "Adequate",
+      "Inadequate"
+    )
+  ) |>
+  group_by(empirical_therapy) |>
+  summarise(
+    n = n(),
+    
+    ICU_LOS_median =
+      median(duree_sejour_reanimation, na.rm = TRUE),
+    
+    ICU_LOS_Q1 =
+      quantile(duree_sejour_reanimation, 0.25, na.rm = TRUE),
+    
+    ICU_LOS_Q3 =
+      quantile(duree_sejour_reanimation, 0.75, na.rm = TRUE),
+    
+    hospital_LOS_median =
+      median(duree_sejour_hopital, na.rm = TRUE),
+    
+    hospital_LOS_Q1 =
+      quantile(duree_sejour_hopital, 0.25, na.rm = TRUE),
+    
+    hospital_LOS_Q3 =
+      quantile(duree_sejour_hopital, 0.75, na.rm = TRUE),
+    
+    .groups = "drop"
+  )
+
+los_by_adequacy
+binary_outcomes_by_adequacy <- data |>
+  filter(
+    !is.na(adequation_antibiotherapie_probabiliste)
+  ) |>
+  mutate(
+    empirical_therapy = if_else(
+      adequation_antibiotherapie_probabiliste == 1,
+      "Adequate",
+      "Inadequate"
+    )
+  ) |>
+  group_by(empirical_therapy) |>
+  summarise(
+    n = n(),
+    
+    ICU_death_n =
+      sum(dc_reanimation == 1, na.rm = TRUE),
+    
+    ICU_death_percent =
+      100 * mean(dc_reanimation == 1, na.rm = TRUE),
+    
+    hospital_death_n =
+      sum(dc_hopital == 1, na.rm = TRUE),
+    
+    hospital_death_percent =
+      100 * mean(dc_hopital == 1, na.rm = TRUE),
+    
+    POP_recurrence_n =
+      sum(recidive_ppo == 1, na.rm = TRUE),
+    
+    POP_recurrence_percent =
+      100 * mean(recidive_ppo == 1, na.rm = TRUE),
+    
+    .groups = "drop"
+  )
+
+binary_outcomes_by_adequacy
+outcomes_summary
+outcomes_events
+los_by_adequacy
+binary_outcomes_by_adequacy
+```
+
+```{r}
+# ICU length of stay
+wilcox_icu_los <- wilcox.test(
+  duree_sejour_reanimation ~ adequation_antibiotherapie_probabiliste,
+  data = data,
+  exact = FALSE
+)
+
+# Hospital length of stay
+wilcox_hospital_los <- wilcox.test(
+  duree_sejour_hopital ~ adequation_antibiotherapie_probabiliste,
+  data = data,
+  exact = FALSE
+)
+
+# ICU mortality
+table_icu_death <- table(
+  data$adequation_antibiotherapie_probabiliste,
+  data$dc_reanimation
+)
+
+fisher_icu_death <- fisher.test(table_icu_death)
+
+# Hospital mortality
+table_hospital_death <- table(
+  data$adequation_antibiotherapie_probabiliste,
+  data$dc_hopital
+)
+
+fisher_hospital_death <- fisher.test(table_hospital_death)
+
+# POP recurrence
+table_pop_recurrence <- table(
+  data$adequation_antibiotherapie_probabiliste,
+  data$recidive_ppo
+)
+
+fisher_pop_recurrence <- fisher.test(table_pop_recurrence)
+los_by_adequacy |>
+  select(
+    empirical_therapy,
+    n,
+    ICU_LOS_median,
+    ICU_LOS_Q1,
+    ICU_LOS_Q3,
+    hospital_LOS_median,
+    hospital_LOS_Q1,
+    hospital_LOS_Q3
+  )
+
+binary_outcomes_by_adequacy
+
+wilcox_icu_los
+wilcox_hospital_los
+fisher_icu_death
+fisher_hospital_death
+fisher_pop_recurrence
+
+los_by_adequacy |>
+  select(
+    empirical_therapy,
+    hospital_LOS_median,
+    hospital_LOS_Q1,
+    hospital_LOS_Q3
+  )
+
+binary_outcomes_by_adequacy |>
+  select(
+    empirical_therapy,
+    ICU_death_n,
+    ICU_death_percent,
+    hospital_death_n,
+    hospital_death_percent,
+    POP_recurrence_n,
+    POP_recurrence_percent
+  )
+```
+
+### Clinical outcomes
+
+Empirical antimicrobial inadequacy was not associated with ICU length of stay (*P* = **`r format.pval(wilcox_icu_los$p.value, digits = 3)`**), ICU mortality (*P* = **`r format.pval(fisher_icu_death$p.value, digits = 3)`**), hospital mortality (*P* = **`r format.pval(fisher_hospital_death$p.value, digits = 3)`**), or POP recurrence (*P* = **`r format.pval(fisher_pop_recurrence$p.value, digits = 3)`**).
+
+A difference in hospital length of stay was observed between patients receiving adequate and inadequate empirical antimicrobial therapy (*P* = **`r format.pval(wilcox_hospital_los$p.value, digits = 3)`**). Given the secondary exploratory nature of this analysis and the absence of adjustment for potential confounding, this finding should be interpreted cautiously.
+
+# 12. Overall clinical utility of pre-extubation sampling
+
+We finally quantified the proportion of patients in whom pre-extubation respiratory microbiology could potentially have provided clinically relevant information for the subsequent empirical management of POP.
+
+To provide a conservative estimate of potential clinical utility, this analysis was restricted to specific microbiological concordance, excluding concordance based solely on oropharyngeal flora.
+
+```{r}
+specific_actionability_data <- preEOT_clinical |>
+  left_join(
+    preEOT_pos |>
+      select(
+        Numero,
+        concordant_without_FOP
+      ),
+    by = "Numero"
+  )
+
+specific_actionability <- specific_actionability_data |>
+  filter(
+    concordant_without_FOP,
+    !is.na(adequation_antibiotherapie_probabiliste)
+  ) |>
+  summarise(
+    specific_matches = n(),
+    inadequate_therapy = sum(
+      adequation_antibiotherapie_probabiliste == 0
+    ),
+    adequate_therapy = sum(
+      adequation_antibiotherapie_probabiliste == 1
+    )
+  )
+
+specific_actionability
+
+specific_actionability_cases <- specific_actionability_data |>
+  filter(
+    concordant_without_FOP,
+    adequation_antibiotherapie_probabiliste == 0
+  ) |>
+  select(
+    Numero,
+    pathogene_preeot,
+    pathogene_preeot_2,
+    pathogene_preeot_3,
+    pathogene_ppo,
+    pathogene_ppo_2,
+    pathogene_ppo_3,
+    resistance_phenotypique_germe,
+    adaptation_ATB_48h
+  )
+
+specific_actionability_cases
+
+n_specific_actionable <- nrow(
+  specific_actionability_cases
+)
+
+pct_specific_actionable_total <-
+  100 * n_specific_actionable / n_total
+
+pct_specific_actionable_sampled <-
+  100 * n_specific_actionable / n_performed
+
+pct_specific_actionable_positive <-
+  100 * n_specific_actionable / n_positive
+
+specific_actionability
+
+n_specific_actionable
+pct_specific_actionable_total
+pct_specific_actionable_sampled
+pct_specific_actionable_positive
+
+specific_actionability_cases
+```
+
+### Potential clinical actionability
+
+Among the 20 patients with positive pre-extubation microbiology, **9 (45.0%)** had specific microbiological concordance with the microorganism(s) subsequently recovered at POP diagnosis, after excluding concordance based solely on oropharyngeal flora.
+
+Among these nine patients, empirical antimicrobial therapy was inadequate in **4 patients**.
+
+Thus, pre-extubation microbiology could potentially have provided relevant information for empirical treatment selection in only **4/122 patients (3.3%)** in the overall cohort, corresponding to **4/69 (5.8%)** of patients who underwent pre-extubation respiratory sampling and **4/20 (20.0%)** of those with a positive pre-extubation sample.
+
+This estimate represents an upper bound of potential clinical actionability rather than demonstrated clinical benefit, because the availability of pre-extubation microbiological identification and susceptibility results at the time of POP treatment initiation could not be established from the available data.
+
+```{r}
+actionability_ci <- binom.test(
+  n_specific_actionable,
+  n_total
+)$conf.int
+
+actionability_ci
+actionability_ci_low <- 100 * actionability_ci[1]
+actionability_ci_high <- 100 * actionability_ci[2]
+```
+
+Overall potential clinical actionability was therefore **`r n_specific_actionable`/`r n_total` (`r round(pct_specific_actionable_total, 1)`%; 95% CI `r round(actionability_ci_low, 1)`–`r round(actionability_ci_high, 1)`%)**.
+
+```{r}
+clinical_utility_cascade <- tibble(
+  stage = c(
+    "Patients with POP",
+    "Pre-extubation sampling",
+    "Positive pre-extubation microbiology",
+    "Specific microbiological concordance",
+    "Potentially actionable"
+  ),
+  n = c(
+    n_total,
+    n_performed,
+    n_positive,
+    sum(preEOT_pos$concordant_without_FOP),
+    n_specific_actionable
+  )
+) |>
+  mutate(
+    percent_total = 100 * n / n_total,
+    stage = factor(stage, levels = rev(stage))
+  )
+
+clinical_utility_cascade
+fig_clinical_utility <- ggplot(
+  clinical_utility_cascade,
+  aes(
+    x = n,
+    y = stage
+  )
+) +
+  geom_col(
+    width = 0.65,
+    fill = "grey35"
+  ) +
+  geom_text(
+    aes(
+      label = paste0(
+        n,
+        " (",
+        round(percent_total, 1),
+        "%)"
+      )
+    ),
+    hjust = -0.15,
+    size = 4
+  ) +
+  scale_x_continuous(
+    limits = c(0, 135),
+    expand = c(0, 0)
+  ) +
+  labs(
+    title = "Clinical utility cascade of pre-extubation respiratory sampling",
+    subtitle = "Proportions are expressed relative to the overall POP cohort",
+    x = "Number of patients",
+    y = NULL
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    axis.line.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    plot.title = element_text(face = "bold")
+  )
+
+fig_clinical_utility
+ggsave(
+  "figures/Figure_clinical_utility_cascade.png",
+  fig_clinical_utility,
+  width = 9,
+  height = 5.5,
+  dpi = 600
+)
+```
+
+# 13. Publication-ready figures and tables
+
+The final publication outputs were designed to focus on the clinical utility of pre-extubation respiratory sampling rather than on exhaustive microbiological description.
+
+The main results support a simple clinical narrative: pre-extubation respiratory sampling was frequently performed, but microbiological yield was low, specific concordance with subsequent POP was uncommon, and potentially actionable information was available in only a small proportion of the overall cohort.
+
+Detailed microbiological ecology and exploratory analyses are therefore considered supplementary.
+
+```{r}
+# ============================================================
+# PUBLICATION OUTPUTS
+# ============================================================
+
+# ------------------------------------------------------------
+# 13.1 Key exact confidence intervals
+# ------------------------------------------------------------
+
+# Pre-extubation sampling
+sampling_ci <- binom.test(
+  n_performed,
+  n_total
+)$conf.int
+
+# Microbiological yield among sampled patients
+yield_ci <- binom.test(
+  n_positive,
+  n_performed
+)$conf.int
+
+# Specific concordance among positive pre-EOT samples
+n_specific_concordant <- sum(
+  preEOT_pos$concordant_without_FOP,
+  na.rm = TRUE
+)
+
+specific_concordance_ci <- binom.test(
+  n_specific_concordant,
+  n_positive
+)$conf.int
+
+# Potential actionability in the overall cohort
+actionability_ci <- binom.test(
+  n_specific_actionable,
+  n_total
+)$conf.int
+
+# Convert to percentages
+sampling_ci_pct <- 100 * sampling_ci
+yield_ci_pct <- 100 * yield_ci
+specific_concordance_ci_pct <- 100 * specific_concordance_ci
+actionability_ci_pct <- 100 * actionability_ci
+```
+
+## Figure 1. Study flowchart
+
+The final study flowchart will be generated after reconciliation of the total number of screened patients and exclusions.
+
+No flowchart is generated at this stage to avoid propagating inconsistent screening arithmetic into the final manuscript.
+
+## Figure 2. Clinical utility cascade
+
+```{r}
+# ------------------------------------------------------------
+# 13.2 Figure 2 — Clinical utility cascade
+# ------------------------------------------------------------
+
+clinical_utility_cascade <- tibble(
+  stage = c(
+    "Patients with POP",
+    "Pre-extubation sampling",
+    "Positive pre-extubation microbiology",
+    "Specific microbiological concordance",
+    "Potentially actionable"
+  ),
+  n = c(
+    n_total,
+    n_performed,
+    n_positive,
+    n_specific_concordant,
+    n_specific_actionable
+  )
+) |>
+  mutate(
+    percent_total = 100 * n / n_total,
+    stage = factor(
+      stage,
+      levels = rev(stage)
+    ),
+    highlight = if_else(
+      stage == "Potentially actionable",
+      "Potentially actionable",
+      "Other stages"
+    )
+  )
+
+clinical_utility_cascade
+```
+
+```{r}
+fig_clinical_utility <- ggplot(
+  clinical_utility_cascade,
+  aes(
+    x = n,
+    y = stage,
+    fill = highlight
+  )
+) +
+  geom_col(
+    width = 0.62
+  ) +
+  geom_text(
+    aes(
+      label = paste0(
+        n,
+        "  (",
+        sprintf("%.1f", percent_total),
+        "%)"
+      )
+    ),
+    hjust = -0.12,
+    size = 4
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Other stages" = "#5A5A5A",
+      "Potentially actionable" = "#9B2C2C"
+    )
+  ) +
+  scale_x_continuous(
+    limits = c(0, 140),
+    breaks = seq(0, 120, 20),
+    expand = c(0, 0)
+  ) +
+  labs(
+    title = "Clinical utility of pre-extubation respiratory sampling",
+    subtitle = "Proportions are expressed relative to the overall POP cohort",
+    x = "Number of patients",
+    y = NULL
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    legend.position = "none",
+    axis.line.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text.y = element_text(
+      size = 11,
+      colour = "black"
+    ),
+    axis.text.x = element_text(
+      colour = "black"
+    ),
+    plot.title = element_text(
+      face = "bold",
+      size = 14
+    ),
+    plot.subtitle = element_text(
+      size = 11
+    ),
+    plot.margin = margin(
+      t = 10,
+      r = 35,
+      b = 10,
+      l = 10
+    )
+  )
+
+fig_clinical_utility
+```
+
+```{r}
+ggsave(
+  "figures/Figure_2_clinical_utility_cascade.png",
+  fig_clinical_utility,
+  width = 9,
+  height = 5.5,
+  dpi = 600
+)
+```
+
+**Figure 2 legend.**\
+Among 122 patients who subsequently developed postoperative pneumonia, 69 underwent pre-extubation respiratory sampling and 20 had positive microbiology. Specific concordance, excluding concordance based solely on oropharyngeal flora, was observed in nine patients. Four patients had both specific microbiological concordance and inadequate empirical antimicrobial therapy and were therefore considered potentially actionable. Potential actionability represents an upper-bound estimate and does not imply demonstrated clinical benefit.
+
+## Figure 3. Antimicrobial resistance and empirical treatment inadequacy
+
+```{r}
+# ------------------------------------------------------------
+# 13.3 Figure 3 — Resistance and empirical inadequacy
+# ------------------------------------------------------------
+
+resistance_figure_data <- data |>
+  filter(
+    !is.na(any_resistance),
+    !is.na(adequation_antibiotherapie_probabiliste)
+  ) |>
+  mutate(
+    resistance = if_else(
+      any_resistance == 1,
+      "Resistance present",
+      "No reported resistance"
+    ),
+    inadequate = if_else(
+      adequation_antibiotherapie_probabiliste == 0,
+      1,
+      0
+    )
+  ) |>
+  group_by(resistance) |>
+  summarise(
+    n = n(),
+    inadequate_n = sum(inadequate),
+    inadequate_percent =
+      100 * inadequate_n / n,
+    .groups = "drop"
+  ) |>
+  rowwise() |>
+  mutate(
+    ci_low = 100 * binom.test(
+      inadequate_n,
+      n
+    )$conf.int[1],
+    ci_high = 100 * binom.test(
+      inadequate_n,
+      n
+    )$conf.int[2]
+  ) |>
+  ungroup() |>
+  mutate(
+    resistance = factor(
+      resistance,
+      levels = c(
+        "No reported resistance",
+        "Resistance present"
+      )
+    )
+  )
+
+resistance_figure_data
+```
+
+```{r}
+fig_resistance_inadequacy <- ggplot(
+  resistance_figure_data,
+  aes(
+    x = resistance,
+    y = inadequate_percent
+  )
+) +
+  geom_col(
+    width = 0.55,
+    fill = "#5A5A5A"
+  ) +
+  geom_errorbar(
+    aes(
+      ymin = ci_low,
+      ymax = ci_high
+    ),
+    width = 0.12,
+    linewidth = 0.6
+  ) +
+  geom_text(
+    aes(
+      label = paste0(
+        inadequate_n,
+        "/",
+        n,
+        "\n",
+        sprintf("%.1f", inadequate_percent),
+        "%"
+      )
+    ),
+    vjust = -0.6,
+    size = 4
+  ) +
+  annotate(
+    "text",
+    x = 1.5,
+    y = 66,
+    label = paste0(
+      "OR ",
+      sprintf("%.2f", OR_resistance),
+      " (95% CI ",
+      sprintf("%.2f", CI_resistance[1]),
+      "–",
+      sprintf("%.2f", CI_resistance[2]),
+      ")\nP = ",
+      format.pval(
+        p_resistance,
+        digits = 3,
+        eps = 0.001
+      )
+    ),
+    size = 4
+  ) +
+  scale_y_continuous(
+    limits = c(0, 72),
+    breaks = seq(0, 60, 10),
+    labels = function(x) paste0(x, "%"),
+    expand = c(0, 0)
+  ) +
+  labs(
+    title = "Empirical antimicrobial inadequacy according to resistance phenotype",
+    x = NULL,
+    y = "Inadequate empirical antimicrobial therapy"
+  ) +
+  theme_classic(base_size = 12) +
+  theme(
+    axis.text.x = element_text(
+      size = 11,
+      colour = "black"
+    ),
+    axis.text.y = element_text(
+      colour = "black"
+    ),
+    plot.title = element_text(
+      face = "bold",
+      size = 13
+    )
+  )
+
+fig_resistance_inadequacy
+```
+
+```{r}
+ggsave(
+  "figures/Figure_3_resistance_inadequacy.png",
+  fig_resistance_inadequacy,
+  width = 7,
+  height = 5.5,
+  dpi = 600
+)
+```
+
+**Figure 3 legend.**\
+Empirical antimicrobial therapy was inadequate in 10/70 patients (14.3%) without reported antimicrobial resistance and in 13/29 patients (44.8%) with a reported resistance phenotype. Error bars represent exact 95% confidence intervals for proportions. The odds ratio was estimated using Fisher's exact test.
+
+# 14. Publication tables
+
+## Table 1. Characteristics of the study population
+
+Table 1 will contain descriptive characteristics of the complete cohort of 122 patients with POP. No between-group statistical comparisons will be performed in Table 1.
+
+The final selection of variables will be restricted to clinically relevant demographic, perioperative and severity characteristics to maintain a concise journal-style presentation.
+
+## Table 2. Pre-extubation sampling and potential clinical utility
+
+```{r}
+# ------------------------------------------------------------
+# 14.1 Table 2 — Pre-EOT sampling and clinical utility
+# ------------------------------------------------------------
+
+table2_publication <- tibble(
+  Characteristic = c(
+    "Pre-extubation respiratory sampling performed",
+    "Positive pre-extubation microbiology",
+    "Negative pre-extubation microbiology",
+    "Any microbiological concordance",
+    "Specific concordance excluding oropharyngeal flora",
+    "Specific concordance in the overall cohort",
+    "Potentially actionable in the overall cohort",
+    "Potentially actionable among sampled patients",
+    "Potentially actionable among positive samples"
+  ),
+  
+  `n/N (%)` = c(
+    paste0(
+      n_performed, "/", n_total,
+      " (", sprintf("%.1f", 100 * n_performed / n_total), "%)"
+    ),
+    
+    paste0(
+      n_positive, "/", n_performed,
+      " (", sprintf("%.1f", 100 * n_positive / n_performed), "%)"
+    ),
+    
+    paste0(
+      n_negative, "/", n_performed,
+      " (", sprintf("%.1f", 100 * n_negative / n_performed), "%)"
+    ),
+    
+    paste0(
+      n_concordant, "/", n_positive,
+      " (", sprintf("%.1f", 100 * n_concordant / n_positive), "%)"
+    ),
+    
+    paste0(
+      n_specific_concordant, "/", n_positive,
+      " (", sprintf("%.1f", 100 * n_specific_concordant / n_positive), "%)"
+    ),
+    
+    paste0(
+      n_specific_concordant, "/", n_total,
+      " (", sprintf("%.1f", 100 * n_specific_concordant / n_total), "%)"
+    ),
+    
+    paste0(
+      n_specific_actionable, "/", n_total,
+      " (", sprintf("%.1f", pct_specific_actionable_total), "%)"
+    ),
+    
+    paste0(
+      n_specific_actionable, "/", n_performed,
+      " (", sprintf("%.1f", pct_specific_actionable_sampled), "%)"
+    ),
+    
+    paste0(
+      n_specific_actionable, "/", n_positive,
+      " (", sprintf("%.1f", pct_specific_actionable_positive), "%)"
+    )
+  ),
+  
+  `95% CI` = c(
+    paste0(
+      sprintf("%.1f", sampling_ci_pct[1]),
+      "–",
+      sprintf("%.1f", sampling_ci_pct[2]),
+      "%"
+    ),
+    
+    paste0(
+      sprintf("%.1f", yield_ci_pct[1]),
+      "–",
+      sprintf("%.1f", yield_ci_pct[2]),
+      "%"
+    ),
+    
+    "",
+    
+    paste0(
+      sprintf("%.1f", 100 * concordance_ci[1]),
+      "–",
+      sprintf("%.1f", 100 * concordance_ci[2]),
+      "%"
+    ),
+    
+    paste0(
+      sprintf("%.1f", specific_concordance_ci_pct[1]),
+      "–",
+      sprintf("%.1f", specific_concordance_ci_pct[2]),
+      "%"
+    ),
+    
+    "",
+    
+    paste0(
+      sprintf("%.1f", actionability_ci_pct[1]),
+      "–",
+      sprintf("%.1f", actionability_ci_pct[2]),
+      "%"
+    ),
+    
+    "",
+    ""
+  )
+)
+
+knitr::kable(
+  table2_publication,
+  caption = "Table 2. Pre-extubation respiratory sampling, microbiological yield, concordance and potential clinical utility.",
+  align = c("l", "c", "c")
+)
+```
+
+**Table 2 footnote.**\
+Specific microbiological concordance excluded concordance based solely on oropharyngeal flora. Potential actionability was defined as the coexistence of specific pre-extubation microbiological concordance and inadequate empirical antimicrobial therapy at POP diagnosis. This represents an upper-bound estimate because availability of microbiological identification and susceptibility results at the time of treatment initiation could not be established.
+
+## Table 3. Antimicrobial management and clinical outcomes
+
+```{r}
+# ------------------------------------------------------------
+# 14.2 Table 3 — Antimicrobial management and outcomes
+# ------------------------------------------------------------
+
+# Overall mortality / recurrence among patients with adequacy data
+
+outcome_publication <- data |>
+  filter(
+    !is.na(adequation_antibiotherapie_probabiliste)
+  ) |>
+  mutate(
+    empirical_therapy = if_else(
+      adequation_antibiotherapie_probabiliste == 1,
+      "Adequate",
+      "Inadequate"
+    )
+  ) |>
+  group_by(empirical_therapy) |>
+  summarise(
+    n = n(),
+    
+    ICU_LOS =
+      paste0(
+        median(duree_sejour_reanimation, na.rm = TRUE),
+        " [",
+        quantile(duree_sejour_reanimation, 0.25, na.rm = TRUE),
+        "–",
+        quantile(duree_sejour_reanimation, 0.75, na.rm = TRUE),
+        "]"
+      ),
+    
+    Hospital_LOS =
+      paste0(
+        median(duree_sejour_hopital, na.rm = TRUE),
+        " [",
+        quantile(duree_sejour_hopital, 0.25, na.rm = TRUE),
+        "–",
+        quantile(duree_sejour_hopital, 0.75, na.rm = TRUE),
+        "]"
+      ),
+    
+    ICU_mortality =
+      paste0(
+        sum(dc_reanimation == 1, na.rm = TRUE),
+        "/",
+        sum(!is.na(dc_reanimation)),
+        " (",
+        sprintf(
+          "%.1f",
+          100 * mean(dc_reanimation == 1, na.rm = TRUE)
+        ),
+        "%)"
+      ),
+    
+    Hospital_mortality =
+      paste0(
+        sum(dc_hopital == 1, na.rm = TRUE),
+        "/",
+        sum(!is.na(dc_hopital)),
+        " (",
+        sprintf(
+          "%.1f",
+          100 * mean(dc_hopital == 1, na.rm = TRUE)
+        ),
+        "%)"
+      ),
+    
+    POP_recurrence =
+      paste0(
+        sum(recidive_ppo == 1, na.rm = TRUE),
+        "/",
+        sum(!is.na(recidive_ppo)),
+        " (",
+        sprintf(
+          "%.1f",
+          100 * mean(recidive_ppo == 1, na.rm = TRUE)
+        ),
+        "%)"
+      ),
+    
+    .groups = "drop"
+  )
+
+outcome_publication
+```
+
+```{r}
+table3_publication <- tibble(
+  Characteristic = c(
+    "Adequate empirical antimicrobial therapy",
+    "Inadequate empirical antimicrobial therapy",
+    "Antimicrobial adaptation at 48 h",
+    "Reported antimicrobial resistance",
+    "Inadequacy without reported resistance",
+    "Inadequacy with reported resistance",
+    "ICU length of stay, days",
+    "Hospital length of stay, days",
+    "ICU mortality",
+    "Hospital mortality",
+    "POP recurrence"
+  ),
+  
+  `Overall / Adequate` = c(
+    paste0(
+      n_atb_adequate, "/", n_atb_available,
+      " (", sprintf("%.1f", pct_atb_adequate), "%)"
+    ),
+    
+    paste0(
+      n_atb_inadequate, "/", n_atb_available,
+      " (", sprintf("%.1f", pct_atb_inadequate), "%)"
+    ),
+    
+    paste0(
+      n_adapted, "/", n_adaptation_available,
+      " (", sprintf("%.1f", pct_adapted), "%)"
+    ),
+    
+    paste0(
+      n_resistant, "/", n_resistance_available,
+      " (", sprintf("%.1f", pct_resistant), "%)"
+    ),
+    
+    paste0(
+      "10/70 (14.3%)"
+    ),
+    
+    paste0(
+      "13/29 (44.8%)"
+    ),
+    
+    outcome_publication |>
+      filter(empirical_therapy == "Adequate") |>
+      pull(ICU_LOS),
+    
+    outcome_publication |>
+      filter(empirical_therapy == "Adequate") |>
+      pull(Hospital_LOS),
+    
+    outcome_publication |>
+      filter(empirical_therapy == "Adequate") |>
+      pull(ICU_mortality),
+    
+    outcome_publication |>
+      filter(empirical_therapy == "Adequate") |>
+      pull(Hospital_mortality),
+    
+    outcome_publication |>
+      filter(empirical_therapy == "Adequate") |>
+      pull(POP_recurrence)
+  ),
+  
+  `Inadequate` = c(
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    
+    outcome_publication |>
+      filter(empirical_therapy == "Inadequate") |>
+      pull(ICU_LOS),
+    
+    outcome_publication |>
+      filter(empirical_therapy == "Inadequate") |>
+      pull(Hospital_LOS),
+    
+    outcome_publication |>
+      filter(empirical_therapy == "Inadequate") |>
+      pull(ICU_mortality),
+    
+    outcome_publication |>
+      filter(empirical_therapy == "Inadequate") |>
+      pull(Hospital_mortality),
+    
+    outcome_publication |>
+      filter(empirical_therapy == "Inadequate") |>
+      pull(POP_recurrence)
+  ),
+  
+  `Effect / P value` = c(
+    "",
+    "",
+    "",
+    "",
+    
+    "",
+    
+    paste0(
+      "OR ",
+      sprintf("%.2f", OR_resistance),
+      " [",
+      sprintf("%.2f", CI_resistance[1]),
+      "–",
+      sprintf("%.2f", CI_resistance[2]),
+      "]; P=",
+      format.pval(
+        p_resistance,
+        digits = 3,
+        eps = 0.001
+      )
+    ),
+    
+    paste0(
+      "P=",
+      format.pval(
+        wilcox_icu_los$p.value,
+        digits = 3
+      )
+    ),
+    
+    paste0(
+      "P=",
+      format.pval(
+        wilcox_hospital_los$p.value,
+        digits = 3
+      )
+    ),
+    
+    paste0(
+      "P=",
+      format.pval(
+        fisher_icu_death$p.value,
+        digits = 3
+      )
+    ),
+    
+    paste0(
+      "P=",
+      format.pval(
+        fisher_hospital_death$p.value,
+        digits = 3
+      )
+    ),
+    
+    paste0(
+      "P=",
+      format.pval(
+        fisher_pop_recurrence$p.value,
+        digits = 3
+      )
+    )
+  )
+)
+
+knitr::kable(
+  table3_publication,
+  caption = "Table 3. Antimicrobial management and clinical outcomes according to empirical antimicrobial adequacy.",
+  align = c("l", "c", "c", "c")
+)
+```
+
+**Table 3 footnote.**\
+Continuous outcomes are presented as median \[interquartile range\]. Comparisons of length of stay used Wilcoxon's rank-sum test. Binary outcomes were compared using Fisher's exact test. The association between reported antimicrobial resistance and empirical antimicrobial inadequacy was assessed using Fisher's exact test and is reported as an odds ratio with 95% confidence interval. Clinical outcome analyses were secondary and exploratory.
+
+# 15. Supplementary publication material
+
+The following microbiological figures are retained as supplementary material:
+
+- **Figure S1.** Distribution of microorganisms isolated from positive pre-extubation respiratory samples.
+- **Figure S2.** Distribution of microorganisms isolated at POP diagnosis.
+- **Figure S3.** Microbiological trajectories between positive pre-extubation sampling and POP diagnosis.
+
+The detailed microbiological Sankey plot is retained for descriptive purposes only and is not considered part of the primary clinical inference.
+
+```{r}
+# ------------------------------------------------------------
+# 15.1 Export supplementary figures already generated
+# ------------------------------------------------------------
+
+ggsave(
+  "figures/Figure_S1_preEOT_microbiology.png",
+  fig_preeot_micro,
+  width = 8,
+  height = 5.5,
+  dpi = 600
+)
+
+ggsave(
+  "figures/Figure_S2_POP_microbiology.png",
+  fig_pop_micro,
+  width = 8,
+  height = 6,
+  dpi = 600
+)
+
+ggsave(
+  "figures/Figure_S3_microbiological_sankey.png",
+  fig_micro_sankey,
+  width = 16,
+  height = 10,
+  dpi = 600
+)
+```
+
+# 16. Final analytical summary
+
+Pre-extubation respiratory sampling was performed in **`r n_performed`/`r n_total` (`r sprintf("%.1f", 100*n_performed/n_total)`%)** patients, but microbiological yield was only **`r n_positive`/`r n_performed` (`r sprintf("%.1f", 100*n_positive/n_performed)`%)**.
+
+After excluding concordance based solely on oropharyngeal flora, specific microbiological concordance was observed in **`r n_specific_concordant`/`r n_positive` (`r sprintf("%.1f", 100*n_specific_concordant/n_positive)`%)** positive samples.
+
+Only **`r n_specific_actionable`/`r n_total` (`r sprintf("%.1f", pct_specific_actionable_total)`%; 95% CI `r sprintf("%.1f", actionability_ci_pct[1])`–`r sprintf("%.1f", actionability_ci_pct[2])`%)** of the overall cohort had both specific pre-extubation microbiological concordance and inadequate empirical antimicrobial therapy.
+
+This represents an upper-bound estimate of potential clinical actionability rather than demonstrated benefit.
+
+Reported antimicrobial resistance was associated with empirical antimicrobial inadequacy, which occurred in **13/29 (44.8%)** patients with resistance compared with **10/70 (14.3%)** without reported resistance (OR **`r sprintf("%.2f", OR_resistance)`**, 95% CI **`r sprintf("%.2f", CI_resistance[1])`–`r sprintf("%.2f", CI_resistance[2])`**; *P* = **`r format.pval(p_resistance, digits = 3, eps = 0.001)`**).
+
+Overall, these findings suggest limited potential clinical utility of routine pre-extubation respiratory microbiological sampling for guiding subsequent empirical antimicrobial treatment of POP.

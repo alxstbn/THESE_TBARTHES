@@ -1,0 +1,2896 @@
+---
+title: "Statistiques Tim"
+author: "Thomas Husson"
+format:
+    html:
+        fig-format: svg
+        toc: true
+        toc-depth: 5
+        toc-title: "Table of contents"
+        toc-location: left
+        toc-sticky: true
+        number-sections: true
+        theme: 
+            light: default
+            dark: darkly
+        css: styles.css
+        include-after-body:
+            text: |
+                <script>
+                (function() {
+                    const darkTheme = {
+                        background: "rgb(37, 37, 37)",
+                        panel: "rgb(43, 43, 43)",
+                        grid: "rgb(80, 80, 80)",
+                        axis: "rgb(178, 178, 178)",
+                        text: "rgb(248, 250, 252)",
+                        mutedText: "rgb(215, 215, 215)"
+                    };
+
+                    function isDarkMode() {
+                        return document.body.classList.contains("quarto-dark");
+                    }
+
+                    function clamp(value, min, max) {
+                        return Math.min(Math.max(value, min), max);
+                    }
+
+                    function parseColor(value) {
+                        if (!value || value === "none" || value.startsWith("url(")) {
+                            return null;
+                        }
+
+                        const hex = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+                        if (hex) {
+                            const raw = hex[1].length === 3
+                                ? hex[1].split("").map(function(ch) { return ch + ch; }).join("")
+                                : hex[1];
+                            return {
+                                r: parseInt(raw.slice(0, 2), 16),
+                                g: parseInt(raw.slice(2, 4), 16),
+                                b: parseInt(raw.slice(4, 6), 16)
+                            };
+                        }
+
+                        const rgb = value.match(/^rgb\(\s*([0-9.]+)(%)?\s*,\s*([0-9.]+)(%)?\s*,\s*([0-9.]+)(%)?\s*\)$/i);
+                        if (!rgb) {
+                            return null;
+                        }
+
+                        return {
+                            r: rgb[2] ? Number(rgb[1]) * 2.55 : Number(rgb[1]),
+                            g: rgb[4] ? Number(rgb[3]) * 2.55 : Number(rgb[3]),
+                            b: rgb[6] ? Number(rgb[5]) * 2.55 : Number(rgb[5])
+                        };
+                    }
+
+                    function rgbToHsl(color) {
+                        const r = color.r / 255;
+                        const g = color.g / 255;
+                        const b = color.b / 255;
+                        const max = Math.max(r, g, b);
+                        const min = Math.min(r, g, b);
+                        const l = (max + min) / 2;
+
+                        if (max === min) {
+                            return { h: 0, s: 0, l: l };
+                        }
+
+                        const d = max - min;
+                        const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                        let h;
+                        if (max === r) {
+                            h = (g - b) / d + (g < b ? 6 : 0);
+                        } else if (max === g) {
+                            h = (b - r) / d + 2;
+                        } else {
+                            h = (r - g) / d + 4;
+                        }
+
+                        return { h: h / 6, s: s, l: l };
+                    }
+
+                    function hslToRgb(hsl) {
+                        const h = hsl.h;
+                        const s = hsl.s;
+                        const l = hsl.l;
+
+                        if (s === 0) {
+                            const gray = Math.round(l * 255);
+                            return "rgb(" + gray + ", " + gray + ", " + gray + ")";
+                        }
+
+                        function hue2rgb(p, q, t) {
+                            if (t < 0) t += 1;
+                            if (t > 1) t -= 1;
+                            if (t < 1 / 6) return p + (q - p) * 6 * t;
+                            if (t < 1 / 2) return q;
+                            if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                            return p;
+                        }
+
+                        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                        const p = 2 * l - q;
+                        const r = Math.round(hue2rgb(p, q, h + 1 / 3) * 255);
+                        const g = Math.round(hue2rgb(p, q, h) * 255);
+                        const b = Math.round(hue2rgb(p, q, h - 1 / 3) * 255);
+                        return "rgb(" + r + ", " + g + ", " + b + ")";
+                    }
+
+                    function relativeLuminance(color) {
+                        function channel(value) {
+                            value = value / 255;
+                            return value <= 0.03928
+                                ? value / 12.92
+                                : Math.pow((value + 0.055) / 1.055, 2.4);
+                        }
+
+                        return 0.2126 * channel(color.r) + 0.7152 * channel(color.g) + 0.0722 * channel(color.b);
+                    }
+
+                    function darkColorFor(value, property) {
+                        const color = parseColor(value);
+                        if (!color) {
+                            return value;
+                        }
+
+                        const spread = Math.max(color.r, color.g, color.b) - Math.min(color.r, color.g, color.b);
+                        const luminance = relativeLuminance(color);
+
+                        if (spread < 12) {
+                            if (luminance > 0.95) return darkTheme.background;
+                            if (luminance > 0.80) return property === "stroke" ? darkTheme.grid : darkTheme.panel;
+                            if (luminance > 0.50) return darkTheme.axis;
+                            if (luminance > 0.22) return darkTheme.mutedText;
+                            return darkTheme.text;
+                        }
+
+                        const hsl = rgbToHsl(color);
+                        return hslToRgb({
+                            h: hsl.h,
+                            s: clamp(hsl.s * 0.95, 0.48, 0.82),
+                            l: property === "stroke"
+                                ? clamp(hsl.l, 0.58, 0.72)
+                                : clamp(hsl.l, 0.50, 0.68)
+                        });
+                    }
+
+                    function rememberOriginalColors(svg) {
+                        if (svg.dataset.plotThemeReady === "true") {
+                            return;
+                        }
+
+                        svg.querySelectorAll("[fill], [stroke]").forEach(function(element) {
+                            if (element.hasAttribute("fill")) {
+                                element.dataset.lightFill = element.getAttribute("fill");
+                            }
+                            if (element.hasAttribute("stroke")) {
+                                element.dataset.lightStroke = element.getAttribute("stroke");
+                            }
+                        });
+
+                        svg.dataset.plotThemeReady = "true";
+                    }
+
+                    function applySvgTheme(objectElement) {
+                        const svgDocument = objectElement.contentDocument;
+                        if (!svgDocument) {
+                            return;
+                        }
+
+                        const svg = svgDocument.querySelector("svg");
+                        if (!svg) {
+                            return;
+                        }
+
+                        rememberOriginalColors(svg);
+                        const dark = isDarkMode();
+                        svg.style.backgroundColor = dark ? darkTheme.background : "";
+
+                        svg.querySelectorAll("[fill], [stroke]").forEach(function(element) {
+                            if (element.dataset.lightFill) {
+                                element.setAttribute("fill", dark
+                                    ? darkColorFor(element.dataset.lightFill, "fill")
+                                    : element.dataset.lightFill);
+                            }
+                            if (element.dataset.lightStroke) {
+                                element.setAttribute("stroke", dark
+                                    ? darkColorFor(element.dataset.lightStroke, "stroke")
+                                    : element.dataset.lightStroke);
+                            }
+                        });
+                    }
+
+                    function applyAllSvgThemes() {
+                        document.querySelectorAll('object[data-plot-svg="true"]').forEach(applySvgTheme);
+                    }
+
+                    document.querySelectorAll('img[src$=".svg"]').forEach(function(img) {
+                        const obj = document.createElement("object");
+                        obj.data = img.src;
+                        obj.type = "image/svg+xml";
+                        obj.dataset.plotSvg = "true";
+                        obj.style.width = img.style.width || "100%";
+                        obj.style.maxWidth = "100%";
+                        if (img.id) obj.id = img.id;
+                        if (img.className) obj.className = img.className;
+                        obj.addEventListener("load", function() {
+                            applySvgTheme(obj);
+                        });
+                        img.parentNode.replaceChild(obj, img);
+                    });
+
+                    new MutationObserver(applyAllSvgThemes).observe(document.body, {
+                        attributes: true,
+                        attributeFilter: ["class"]
+                    });
+                })();
+                </script>
+    docx:
+        toc: true
+        toc-depth: 5
+    pdf:
+        toc: true
+        toc-depth: 2
+        toc-title: "Table des matières"
+        pdf-engine: xelatex
+        cite-method: natbib
+        biblio-style: unsrturl
+        natbiboptions: "super,sort,compress"
+        pdf-engine-opts:
+        - -interaction=nonstopmode
+        - -halt-on-error
+        number-sections: true
+        code-block-bg: false
+        header-includes: |
+            % Force la police Computer Modern pour le titre principal
+            \usepackage{fontspec}
+            \makeatletter
+            \renewcommand{\maketitle}{
+            \begin{center}
+                {\Large\bfseries\rmfamily \@title \par}
+                \vskip 1.5em
+                {\large\rmfamily \@author \par}
+                \vskip 1em
+            \end{center}
+            }
+            \makeatother
+            % Titres KOMA-Script en police roman par défaut
+            \setkomafont{disposition}{\rmfamily}
+            \definecolor{sectionblue}{HTML}{1D4E89}
+            \definecolor{subsectionblue}{HTML}{8B1E3F}
+            \definecolor{subsubsectiongreen}{HTML}{1F6B4F}
+            \definecolor{paragraphslate}{HTML}{5A2E8A}
+            \definecolor{subparagraphgray}{HTML}{2F2F2F}
+            \definecolor{linkblue}{HTML}{163A63}
+            \setkomafont{section}{\rmfamily\color{sectionblue}\bfseries}
+            \setkomafont{subsection}{\rmfamily\color{subsectionblue}\bfseries}
+            \setkomafont{subsubsection}{\rmfamily\color{subsubsectiongreen}\bfseries}
+            \setkomafont{paragraph}{\rmfamily\color{paragraphslate}\bfseries}
+            \setkomafont{subparagraph}{\rmfamily\color{subparagraphgray}\bfseries\itshape}
+            \RedeclareSectionCommand[runin=false,afterskip=0.4\baselineskip]{paragraph}
+            \RedeclareSectionCommand[runin=false,afterskip=0.3\baselineskip]{subparagraph}
+            % Hyphenation française
+            \usepackage[french]{babel}
+            % Style des commentaires dans les blocs de code
+            \usepackage{xcolor}
+            \definecolor{commentgray}{HTML}{7A7A7A}
+            \providecommand{\CommentTok}[1]{#1}
+            \AtBeginDocument{
+            \renewcommand{\CommentTok}[1]{\textcolor{commentgray}{\textit{#1}}}
+            }
+            % Police "universelle" pour le code (XeLaTeX)
+            \usepackage{fontspec}
+            \IfFontExistsTF{Ubuntu Mono}{
+              \setmonofont{Ubuntu Mono}[Scale=MatchLowercase]
+            }{
+              \IfFontExistsTF{DejaVu Sans Mono}{
+                \setmonofont{DejaVu Sans Mono}[Scale=MatchLowercase]
+              }{
+                % fallback macOS (souvent dispo)
+                \IfFontExistsTF{Menlo}{
+                  \setmonofont{Menlo}[Scale=MatchLowercase]
+                }{
+                  \IfFontExistsTF{Monaco}{
+                    \setmonofont{Monaco}[Scale=MatchLowercase]
+                  }{
+                    % sinon on garde la police mono par défaut
+                  }
+                }
+              }
+            }
+            % Bloc de code R pour l'annexe (évite Shaded trop grand)
+            \usepackage{listings}
+            \lstset{
+            language=R,
+            basicstyle=\ttfamily\footnotesize\linespread{0.6}\selectfont\color{black},
+            commentstyle=\itshape\color{commentgray},
+            keywordstyle=\color{blue!60!black},
+            stringstyle=\color{brown!60!black},
+            showstringspaces=false,
+            showspaces=false,
+            showtabs=false,
+            breaklines=true,
+            breakatwhitespace=false,
+            columns=fullflexible,
+            xleftmargin=0.5em,
+            xrightmargin=0.5em
+            }
+
+            \usepackage{etoolbox}
+            \renewcommand{\contentsname}{}
+            \AtBeginDocument{
+                \addtocontents{toc}{\protect\smallskip}
+                \let\oldtableofcontents\tableofcontents
+                \renewcommand{\tableofcontents}{
+                \begingroup
+                    \footnotesize
+                    \setlength{\parskip}{2pt}
+                    \oldtableofcontents
+                \endgroup
+                }
+            }
+            \setcounter{tocdepth}{5}
+            \makeatletter
+            \renewcommand{\@tocrmarg}{0pt}
+            \makeatother
+
+            \usepackage{fvextra}
+            \usepackage[section]{placeins}
+            \AtBeginDocument{
+                \urlstyle{same}
+                \renewcommand{\UrlFont}{\rmfamily}
+                \DeclareRobustCommand{\path}[1]{{\rmfamily\detokenize{#1}}}
+                \let\oldhref\href
+                \renewcommand{\href}[2]{\oldhref{#1}{{\rmfamily #2}}}
+                \hypersetup{
+                    colorlinks=true,
+                    linkcolor=linkblue,
+                    citecolor=linkblue,
+                    urlcolor=linkblue
+                }
+            }
+
+            % Gestion des chunks de code
+            \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+
+            \usepackage{needspace}
+            \usepackage{float}
+            \floatplacement{figure}{H}
+            \floatplacement{table}{H}
+            % \usepackage{rotating} % (désactivé)
+
+            \newcommand{\sectionbreak}{\needspace{5\baselineskip}}
+            \setlength{\parindent}{0pt}
+            \setlength{\parskip}{3pt}
+            \hfuzz=100pt
+            \vfuzz=100pt
+            \hbadness=10000
+            \usepackage{enumitem}
+            \setlist[itemize]{itemsep=3pt, parsep=3pt, topsep=3pt}
+            \setlist[enumerate]{itemsep=3pt, parsep=3pt, topsep=3pt}
+            \setlist[description]{itemsep=3pt, parsep=3pt, topsep=3pt}
+
+            \usepackage[most]{tcolorbox}
+            \usepackage{color}
+            \definecolor{lightgray}{gray}{0.95}
+            \newtcolorbox{graybox}{colback=gray!10!white,colframe=black,boxrule=0.6pt,arc=1mm,left=6pt,right=6pt,top=4pt,bottom=4pt}
+            \newtcolorbox{codebox}{breakable,colback=blue!5!white,colframe=blue!50!black,boxrule=0.5pt,arc=1mm,left=4pt,right=4pt,top=3pt,bottom=3pt}
+            \DefineVerbatimEnvironment{CodeBoxContent}{Verbatim}{fontsize=\small,breaklines,breakanywhere}
+
+            \renewcommand{\thesection}{\arabic{section}}
+            \renewcommand{\thesubsection}{\thesection.\Alph{subsection}}
+            \renewcommand{\thesubsubsection}{\thesubsection.\arabic{subsubsection}}
+
+geometry: margin=2.5cm
+---
+
+```{r}
+#| label: setup
+#| include: false
+#| echo: false
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(gt)
+library(kableExtra)
+library(gtsummary)
+library(lubridate)
+library(pROC)
+library(boot)
+library(logistf)
+library(ggsankey)
+library(ggalluvial)
+library(ggrepel)
+
+options(
+    knitr.kable.NA = "",
+    scipen = 999
+)
+
+theme_set(theme_minimal(base_size = 11))
+```
+
+\newpage
+
+```{r}
+#| label: data-import
+#| include: false
+#| echo: false
+df <- read_excel("Recueil_last.xlsx", sheet = "Inclusion") %>%
+    filter(!is.na(Numero))
+```
+
+```{r}
+#| label: data-management
+#| include: false
+#| echo: false
+# Préparation commune à toutes les sorties
+
+df <- df %>%
+    mutate(
+        delai_preEOT_PPO = as.numeric(difftime(date_diagnostic_ppo, date_prelevement_preeot, units = "days")),
+        duree_chirurgie_min = hour(duree_chirurgie_heure) * 60 + minute(duree_chirurgie_heure) + second(duree_chirurgie_heure) / 60,
+        delai_survenue_ppo_apres_admission_reanimation = as.numeric(difftime(date_diagnostic_ppo, date_admission_rea, units = "days")),
+        bmi = suppressWarnings(as.numeric(as.character(bmi))),
+        lus_preeot = suppressWarnings(as.numeric(as.character(lus_preeot))),
+        lus_ppo = suppressWarnings(as.numeric(as.character(lus_ppo))),
+        echec_traitement_initial_num = suppressWarnings(as.numeric(as.character(echec_traitement_initial))),
+        echec_traitement_initial_num = case_when(
+            echec_traitement_initial_num %in% c(0, 1) ~ echec_traitement_initial_num,
+            .default = NA_real_
+        ),
+        adequation_antibiotherapie_probabiliste_num = suppressWarnings(as.numeric(as.character(adequation_antibiotherapie_probabiliste))),
+        adequation_antibiotherapie_probabiliste_num = case_when(
+            adequation_antibiotherapie_probabiliste_num %in% c(0, 1) ~ adequation_antibiotherapie_probabiliste_num,
+            .default = NA_real_
+        ),
+        resistance_phenotypique_germe_num = suppressWarnings(as.numeric(as.character(resistance_phenotypique_germe))),
+        preeot_realise = !is.na(date_prelevement_preeot) |
+            !is.na(type_prelevement_preeot) |
+            !is.na(pathogene_preeot) |
+            !is.na(pathogene_preeot_2) |
+            !is.na(pathogene_preeot_3)
+    ) %>%
+    mutate(
+        preeot_colonise =
+            coalesce(pathogene_preeot != 0, FALSE) |
+            coalesce(pathogene_preeot_2 != 0, FALSE) |
+            coalesce(pathogene_preeot_3 != 0, FALSE),
+        ppo_documentee =
+            coalesce(pathogene_ppo != 0, FALSE) |
+            coalesce(pathogene_ppo_2 != 0, FALSE) |
+            coalesce(pathogene_ppo_3 != 0, FALSE),
+        concordance_pathogene =
+            coalesce(pathogene_preeot != 0 & pathogene_preeot == pathogene_ppo, FALSE) |
+            coalesce(pathogene_preeot != 0 & pathogene_preeot == pathogene_ppo_2, FALSE) |
+            coalesce(pathogene_preeot != 0 & pathogene_preeot == pathogene_ppo_3, FALSE) |
+            coalesce(pathogene_preeot_2 != 0 & pathogene_preeot_2 == pathogene_ppo, FALSE) |
+            coalesce(pathogene_preeot_2 != 0 & pathogene_preeot_2 == pathogene_ppo_2, FALSE) |
+            coalesce(pathogene_preeot_2 != 0 & pathogene_preeot_2 == pathogene_ppo_3, FALSE) |
+            coalesce(pathogene_preeot_3 != 0 & pathogene_preeot_3 == pathogene_ppo, FALSE) |
+            coalesce(pathogene_preeot_3 != 0 & pathogene_preeot_3 == pathogene_ppo_2, FALSE) |
+            coalesce(pathogene_preeot_3 != 0 & pathogene_preeot_3 == pathogene_ppo_3, FALSE)
+    )
+
+# INITIAL
+df <- df %>%
+    mutate(
+        ID_numero = as.numeric(Numero),
+        initial_age = as.numeric(age),
+        initial_sex_male = as.numeric(sexe != 1),
+        initial_bmi = bmi,
+        initial_type_chirurgie_vasculaire = as.numeric(type_chirurgie == 1),
+        initial_intervention = factor(intervention, levels = 0:12, labels = c("TH", "Bricker", "Gastrectomie", "Cytoreduction/CHIP", "Lewis", "DPC", "SPG", "Hepatectomie", "Anévrisme aorte abdominale", "Anévrisme aorte rénale", "Anévrisme aorte thoracique", "Hartmann", "Autres")),
+        initial_abord_chirurgie = factor(abord_chirurgie, levels = 0:3, labels = c("Laparotomie", "Oeso-thoraco-laparotomie", "Thoracophrenolombotomie", "Sternolaparotomie")),
+        initial_score_asa = as.numeric(score_asa),
+        initial_hta = as.numeric(hta == 1),
+        initial_diabete = as.numeric(diabete == 1),
+        initial_dyslipidemie = as.numeric(dyslipidemie == 1),
+        initial_bpco = as.numeric(bpco == 1),
+        initial_insuffissance_respiratoire = as.numeric(insuffissance_respiratoire == 1),
+        initial_saos = as.numeric(saos == 1),
+        initial_insuffisance_cardiaque = as.numeric(insuffisance_cardiaque == 1),
+        initial_tabac = as.numeric(tabac == 1),
+        initial_alcool = as.numeric(alcool == 1),
+        initial_immunodepression = as.numeric(immunodepression == 1),
+        initial_imagerie_preoperatoire = as.numeric(imagerie_preoperatoire == 1),
+        initial_score_sofa = as.numeric(score_sofa),
+        initial_score_cci = as.numeric(`score CCI`),
+        initial_score_igs2 = as.numeric(score_igs2)
+    )
+
+# PEROP
+df <- df %>%
+    mutate(
+        perop_duree_chirurgie_h = as.numeric(duree_chirurgie_min) / 60,
+        perop_score_ariscat = as.numeric(score_ariscat),
+        perop_remplissage_total = as.numeric(remplissage_total),
+        perop_besoins_vasopresseurs = as.numeric(besoins_vasopresseurs == 1),
+        perop_pertes_sanguines = as.numeric(pertes_sanguines),
+        perop_besoins_transfusionnels = as.numeric(besoins_transfusionnels),
+        perop_bilan_entrees_sorties = as.numeric(bilan_entrees_sorties),
+        perop_plaie_thoracique = as.numeric(plaie_thoracique == 1)
+    )
+
+# POSTOP
+df <- df %>%
+    mutate(
+        postop_duree_sejour_reanimation = as.numeric(duree_sejour_reanimation),
+        postop_duree_sejour_hopital = as.numeric(duree_sejour_hopital),
+        postop_dc_reanimation = as.numeric(dc_reanimation == 1),
+        postop_dc_hopital = as.numeric(dc_hopital == 1),
+        postop_jours_vm_avant_extubation = as.numeric(nombre_jours_median_apres_admission_reanimation_sous_vm),
+        postop_jours_tot_vm = as.numeric(jours_tot_vm),
+        postop_lus_preeot = lus_preeot,
+        postop_lus_ppo = lus_ppo
+    )
+
+# INFECTIO
+df <- df %>%
+    mutate(
+        infectio_atb_moins_90j = as.numeric(antibiotherapie_moins_90j == 1),
+        infectio_delai_survenue_ppo = as.numeric(delai_survenue_ppo_apres_admission_reanimation),
+        infectio_fievre = as.numeric(fievre == 1),
+        infectio_oxygenorequerance = as.numeric(oxygenorequerance == 1),
+        infectio_foyer_auscultatoire = as.numeric(foyer_auscultatoire == 1),
+        infectio_dyspnee = as.numeric(dyspnee == 1),
+        infectio_secretions = as.numeric(secretion == 1),
+        infectio_image_scannographique = factor(image_scannographique, levels = 0:2, labels = c("Non", "Oui", "Non réalisé")),
+        infectio_condensation_shuntante = as.numeric(condensation_shuntante == 1),
+        infectio_condensation_non_shuntante = as.numeric(condensation_non_shuntante == 1),
+        infectio_opacite_radiologique = as.numeric(opacite_radiologique == 1),
+        infectio_hyperleucocytose = factor(hyperleucocytose, levels = 0:2, labels = c("Non", "Oui", "Non réalisé")),
+        infectio_pct = factor(PCT, levels = 0:2, labels = c("Non", "Oui", "Non réalisé")),
+        infectio_crp = factor(CRP, levels = 0:2, labels = c("Non", "Oui", "Non réalisé")),
+        infectio_pao2 = factor(PaO2, levels = 0:2, labels = c("Non", "Oui", "Non réalisé")),
+        infectio_cdc_vap_complet = as.numeric(CDC_VAP_complet == 1),
+        infectio_cpis = as.numeric(CPIS)
+    )
+
+pathogene_levels <- 0:22
+pathogene_labels <- c("Aucun", "SAMS", "FOP", "E. faecium", "C. freundii", "H. alvei", "K. pneumoniae", "E.coli", "P. aeruginosa", "P. mirabilis", "Corynebacterium", "S. marcescens", "E. aerogenes", "E. faecalis", "H. influenzae", "A. baumanii", "S. epidermidis", "M. catarrhalis", "S. haemolyticus", "M. pneumoniae", "E. cloacae", "Stenotrophomonas", "Pneumocoque")
+
+df <- df %>%
+    mutate(
+        infectio_type_prelevement_preeot = factor(type_prelevement_preeot, levels = 0:3, labels = c("LBA", "PDP", "AT", "ECBC")),
+        infectio_pathogene_preeot = factor(pathogene_preeot, levels = pathogene_levels, labels = pathogene_labels),
+        infectio_pathogene_preeot_2 = factor(pathogene_preeot_2, levels = pathogene_levels, labels = pathogene_labels),
+        infectio_pathogene_preeot_3 = factor(pathogene_preeot_3, levels = pathogene_levels, labels = pathogene_labels),
+        infectio_pathogene_ppo = factor(pathogene_ppo, levels = pathogene_levels, labels = pathogene_labels),
+        infectio_pathogene_ppo_2 = factor(pathogene_ppo_2, levels = pathogene_levels, labels = pathogene_labels),
+        infectio_pathogene_ppo_3 = factor(pathogene_ppo_3, levels = pathogene_levels, labels = pathogene_labels)
+    )
+
+atb_gen_levels <- 0:22
+atb_gen_labels <- c("Aucun", "Augmentin", "Cefazoline", "Cefotaxime", "Cefepime", "Tazo", "Meropeneme", "Aztreonam", "Ceftazidime avibactam", "Vancomycine", "Teicoplanine", "Linezolide", "Spiramycine", "Metronidazole", "Amikacine", "Bactrim", "Fluoroquinolone", "Daptomycine", "Cloxacilline", "Ceftozolane tazobactam", "Imipenem", "Ceftazidime avibactam", "Cefiderocol")
+
+df <- df %>%
+    mutate(
+        atb_prealable_1 = factor(antibiotherapie_prealable_autre, levels = atb_gen_levels, labels = atb_gen_labels),
+        atb_prealable_2 = factor(antibiotherapie_prealable_autre_2, levels = atb_gen_levels, labels = atb_gen_labels),
+        ATB_prealable_post_op_libelle = case_when(
+            (is.na(atb_prealable_1) | atb_prealable_1 == "Aucun") &
+                (is.na(atb_prealable_2) | atb_prealable_2 == "Aucun") ~ "—",
+            is.na(atb_prealable_1) | atb_prealable_1 == "Aucun" ~ as.character(atb_prealable_2),
+            is.na(atb_prealable_2) | atb_prealable_2 == "Aucun" ~ as.character(atb_prealable_1),
+            atb_prealable_1 == atb_prealable_2 ~ as.character(atb_prealable_1),
+            .default = paste(atb_prealable_1, atb_prealable_2, sep = " + ")
+        ),
+        infectio_atb_initiale_1 = factor(antibiotherapie_initiale, levels = atb_gen_levels, labels = atb_gen_labels)
+    ) %>%
+    select(-atb_prealable_1, -atb_prealable_2)
+
+df <- df %>%
+    mutate(
+        infectio_adequation_atb_probabiliste = adequation_antibiotherapie_probabiliste_num,
+        infectio_echec_traitement_initial = echec_traitement_initial_num,
+        infectio_adaptation_atb_48h = as.numeric(adaptation_ATB_48h == 1),
+        infectio_resistance_phenotypique = factor(resistance_phenotypique_germe, levels = 0:5, labels = c("Non", "BLSE", "EPC", "Résistance à la méticilline", "Cephalosporinase", "Pyo toto R")),
+        infectio_colonisation_rectale_bmr = factor(colonisation_rectale_bmr, levels = 0:5, labels = c("Non", "BLSE", "EPC", "Résistance à la méticilline", "Cephalosporinase", "Pyo toto R")),
+        infectio_hemoculture_positive = as.numeric(hemoculture_positive == 1),
+        infectio_recidive_ppo = as.numeric(recidive_ppo == 1),
+        infectio_colonisation_respi_preeot = as.numeric(preeot_colonise),
+        infectio_colonisation_respi_preeot_factor = factor(infectio_colonisation_respi_preeot, levels = c(0, 1), labels = c("Non colonisé", "Colonisé"))
+    )
+
+# Variables additionnelles pour l'analyse des Échecs Thérapeutiques
+df <- df %>%
+  mutate(
+    nb_atb_proba_raw =
+        as.numeric(!is.na(antibiotherapie_initiale) & antibiotherapie_initiale != 0) +
+        as.numeric(!is.na(antibiotherapie_initiale_2) & antibiotherapie_initiale_2 != 0) +
+        as.numeric(!is.na(antibiotherapie_initiale_3) & antibiotherapie_initiale_3 != 0),
+    nb_atb_probabiliste = factor(case_when(
+      nb_atb_proba_raw == 1 ~ "Monothérapie",
+      nb_atb_proba_raw == 2 ~ "Bithérapie",
+      nb_atb_proba_raw >= 3 ~ "Trithérapie",
+      .default = NA_character_
+    ), levels = c("Monothérapie", "Bithérapie", "Trithérapie")),
+    groupe_colonisation = factor(case_when(
+        preeot_colonise ~ "Groupe A (Colonisé Pré-EOT)",
+        .default = "Groupe B (Stérile ou Non fait)"
+    ), levels = c("Groupe A (Colonisé Pré-EOT)", "Groupe B (Stérile ou Non fait)"))
+  ) %>%
+  mutate(
+    adequation_antibiotherapie_probabiliste = factor(adequation_antibiotherapie_probabiliste_num, levels = c(0, 1), labels = c("Inadéquate", "Adéquate")),
+    echec_traitement_initial = factor(echec_traitement_initial_num, levels = c(0, 1), labels = c("Succès", "Échec"))
+  )
+
+```
+
+\newpage
+
+# Diagramme de flux de la cohorte
+
+Diagramme Mermaid
+
+```{r}
+#| label: flowchart-cohorte
+#| echo: false
+#| results: asis
+
+flow_n_total <- nrow(df)
+flow_n_non_realise <- sum(!df$preeot_realise, na.rm = TRUE)
+flow_n_realise <- sum(df$preeot_realise, na.rm = TRUE)
+flow_n_sterile <- sum(df$preeot_realise & !df$preeot_colonise, na.rm = TRUE)
+flow_n_colonise <- sum(df$preeot_colonise, na.rm = TRUE)
+flow_n_concordant <- sum(df$preeot_colonise & df$concordance_pathogene, na.rm = TRUE)
+flow_n_discordant <- sum(df$preeot_colonise & !df$concordance_pathogene, na.rm = TRUE)
+flow_pct_concordant <- paste0(round(100 * flow_n_concordant / flow_n_colonise, 1), "%")
+flow_pct_discordant <- paste0(round(100 * flow_n_discordant / flow_n_colonise, 1), "%")
+
+cat(paste0(
+    "```{mermaid}\n",
+    "graph TD\n",
+    sprintf('    A["Cohorte totale (N = %s patients avec PPO)"] --> B["Prélèvement Pré-EOT non réalisé<br>(N = %s)"]\n', flow_n_total, flow_n_non_realise),
+    sprintf('    A --> C["Prélèvement Pré-EOT réalisé<br>(N = %s)"]\n', flow_n_realise),
+    sprintf('    C --> D["Prélèvement stérile<br>(N = %s)"]\n', flow_n_sterile),
+    sprintf('    C --> E["Prélèvement colonisé<br>(N = %s)"]\n', flow_n_colonise),
+    sprintf('    E --> F["Germe PPO identique / Concordant<br>(N = %s, soit %s)"]\n', flow_n_concordant, flow_pct_concordant),
+    sprintf('    E --> G["Germes PPO différents / Discordants<br>(N = %s, soit %s)"]\n', flow_n_discordant, flow_pct_discordant),
+    "```\n"
+))
+```
+
+\newpage
+# Caractéristiques initiales
+
+```{r}
+#| label: table-initial
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| tbl-cap: "Caractéristiques initiales des patients"
+cols_to_include_initial <- c(
+    "initial_age",
+    "initial_sex_male",
+    "initial_bmi",
+    "initial_hta",
+    "initial_diabete",
+    "initial_tabac",
+    "initial_alcool",
+    "initial_bpco",
+    "initial_immunodepression",
+    "initial_insuffisance_cardiaque",
+    "initial_dyslipidemie",
+    "initial_saos",
+    "initial_insuffissance_respiratoire",
+    "initial_score_asa",
+    "initial_score_sofa",
+    "initial_score_igs2",
+    "initial_score_cci",
+    "perop_score_ariscat",
+    "initial_type_chirurgie_vasculaire",
+    "initial_intervention",
+    "initial_abord_chirurgie",
+    "infectio_atb_moins_90j",
+    "initial_imagerie_preoperatoire",
+    "infectio_colonisation_rectale_bmr_table"
+)
+
+table_initial <- df %>%
+    mutate(
+        infectio_colonisation_rectale_bmr_table = factor(
+            infectio_colonisation_rectale_bmr,
+            levels = c("Non", "BLSE", "EPC")
+        )
+    ) %>%
+    tbl_summary(
+        by = infectio_colonisation_respi_preeot_factor,
+        include = all_of(cols_to_include_initial),
+        statistic = list(
+            all_categorical() ~ "{n} ({p}%)", 
+            all_continuous() ~ "{mean} ({sd})"
+        ),
+        missing = "no",
+        label = list(
+            initial_age ~ "Âge (années)",
+            initial_sex_male ~ "Sexe masculin",
+            initial_bmi ~ "IMC (kg/m²)",
+            initial_hta ~ "Hypertension artérielle",
+            initial_diabete ~ "Diabète",
+            initial_tabac ~ "Tabagisme (actif ou sevré)",
+            initial_alcool ~ "Alcoolisme (actif ou sevré)",
+            initial_bpco ~ "BPCO",
+            initial_immunodepression ~ "Immunodépression",
+            initial_insuffisance_cardiaque ~ "Insuffisance cardiaque",
+            initial_dyslipidemie ~ "Dyslipidémie",
+            initial_saos ~ "SAOS",
+            initial_insuffissance_respiratoire ~ "Insuffisance respiratoire chronique",
+            initial_score_asa ~ "Score ASA (distribution)",
+            initial_score_sofa ~ "Score SOFA",
+            initial_score_igs2 ~ "Score IGS2",
+            initial_score_cci ~ "Score CCI",
+            perop_score_ariscat ~ "Score ARISCAT",
+            initial_type_chirurgie_vasculaire ~ "Chirurgie vasculaire (vs digestive)",
+            initial_intervention ~ "Intervention réalisée",
+            initial_abord_chirurgie ~ "Voie d'abord chirurgicale",
+            infectio_atb_moins_90j ~ "Antibiothérapie dans les 90j précédents",
+            initial_imagerie_preoperatoire ~ "Imagerie préopératoire réalisée",
+            infectio_colonisation_rectale_bmr_table ~ "Colonisation rectale BMR"
+        )
+    ) %>%
+    modify_header(label = "**Caractéristiques initiales**") %>%
+    add_p(
+        test = list(
+            all_categorical() ~ "chisq.test",
+            all_continuous() ~ "t.test"
+        )
+    ) %>%
+    as_kable_extra(booktabs = TRUE, longtable = TRUE, linesep = "") %>%
+    kableExtra::kable_styling(
+        latex_options = c("repeat_header", "striped"),
+        repeat_header_text = "\\textit{(Suite)}",
+        stripe_color = "gray!10"
+    )
+
+table_initial
+```
+
+\newpage
+# Variables peropératoires
+
+```{r}
+#| label: table-perop
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| tbl-cap: "Variables peropératoires"
+cols_to_include_perop <- c(
+    "perop_plaie_thoracique",
+    "perop_besoins_vasopresseurs",
+    "perop_duree_chirurgie_h",
+    "perop_remplissage_total",
+    "perop_bilan_entrees_sorties",
+    "perop_pertes_sanguines",
+    "perop_besoins_transfusionnels"
+)
+
+table_perop <- df %>%
+    tbl_summary(
+        by = infectio_colonisation_respi_preeot_factor,
+        include = all_of(cols_to_include_perop),
+        statistic = list(
+            all_categorical() ~ "{n} ({p}%)", 
+            all_continuous() ~ "{mean} ({sd})"
+        ),
+        digits = list(
+            perop_duree_chirurgie_h ~ 1,
+            perop_remplissage_total ~ 0,
+            perop_bilan_entrees_sorties ~ 0,
+            perop_pertes_sanguines ~ 0
+        ),
+        missing = "no",
+        label = list(
+            perop_plaie_thoracique ~ "Effraction thoracique",
+            perop_besoins_vasopresseurs ~ "Vasopresseurs peropératoires",
+            perop_duree_chirurgie_h ~ "Durée opératoire (h)",
+            perop_remplissage_total ~ "Remplissage vasculaire (mL)",
+            perop_bilan_entrees_sorties ~ "Bilan entrées-sorties peropératoire (mL)",
+            perop_pertes_sanguines ~ "Pertes sanguines (mL)",
+            perop_besoins_transfusionnels ~ "Transfusion peropératoire"
+        )
+    ) %>%
+    modify_header(label = "**Variables peropératoires**") %>%
+    add_p(
+        test = list(
+            all_categorical() ~ "chisq.test",
+            all_continuous() ~ "t.test"
+        )
+    ) %>%
+    modify_table_body(
+        ~ .x %>%
+            mutate(
+                across(
+                    starts_with("stat_"),
+                    ~ case_when(
+                        variable %in% c("perop_remplissage_total", "perop_bilan_entrees_sorties", "perop_pertes_sanguines") ~ gsub(",", "", .x),
+                        .default = .x
+                    )
+                )
+            )
+    ) %>%
+    as_kable_extra(booktabs = TRUE, longtable = TRUE, linesep = "") %>%
+    kableExtra::kable_styling(
+        latex_options = c("repeat_header", "striped"),
+        repeat_header_text = "\\textit{(Suite)}",
+        stripe_color = "gray!10"
+    )
+
+table_perop
+```
+
+\newpage
+# Variables post-opératoires
+
+```{r}
+#| label: table-postop
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| tbl-cap: "Variables post-opératoires"
+cols_to_include_postop <- c(
+    "postop_jours_tot_vm",
+    "postop_jours_vm_avant_extubation",
+    "postop_lus_preeot",
+    "postop_lus_ppo",
+    "infectio_cdc_vap_complet",
+    "infectio_delai_survenue_ppo",
+    "infectio_cpis",
+    "infectio_fievre",
+    "infectio_oxygenorequerance",
+    "infectio_foyer_auscultatoire",
+    "infectio_dyspnee",
+    "infectio_secretions",
+    "infectio_opacite_radiologique",
+    "infectio_condensation_shuntante",
+    "infectio_condensation_non_shuntante",
+    "infectio_image_scannographique",
+    "infectio_hyperleucocytose",
+    "infectio_pct",
+    "infectio_crp",
+    "infectio_pao2",
+    "infectio_hemoculture_positive",
+    "infectio_recidive_ppo",
+    "infectio_adequation_atb_probabiliste",
+    "infectio_echec_traitement_initial",
+    "infectio_adaptation_atb_48h",
+    "infectio_resistance_phenotypique",
+    "postop_duree_sejour_reanimation",
+    "postop_duree_sejour_hopital",
+    "postop_dc_reanimation",
+    "postop_dc_hopital"
+)
+
+table_postop <- df %>%
+    tbl_summary(
+        by = infectio_colonisation_respi_preeot_factor,
+        include = all_of(cols_to_include_postop),
+        statistic = list(
+            all_categorical() ~ "{n} ({p}%)", 
+            all_continuous() ~ "{mean} ({sd})"
+        ),
+        missing = "no",
+        label = list(
+            postop_jours_tot_vm ~ "Jours totaux sous VM",
+            postop_jours_vm_avant_extubation ~ "Jours de VM avant extubation",
+            postop_lus_preeot ~ "Score LUS pré-EOT",
+            postop_lus_ppo ~ "Score LUS PPO",
+            infectio_cdc_vap_complet ~ "Critères CDC VAP complets",
+            infectio_delai_survenue_ppo ~ "Délai admission réa → PPO (j)",
+            infectio_cpis ~ "Score CPIS au diagnostic",
+            infectio_fievre ~ "› Fièvre / hypothermie",
+            infectio_oxygenorequerance ~ "› Oxygénorequérance",
+            infectio_foyer_auscultatoire ~ "› Foyer auscultatoire",
+            infectio_dyspnee ~ "› Dyspnée",
+            infectio_secretions ~ "› Sécrétions purulentes",
+            infectio_opacite_radiologique ~ "› Opacité radiologique",
+            infectio_condensation_shuntante ~ "› Condensation shuntante (écho)",
+            infectio_condensation_non_shuntante ~ "› Condensation non shuntante (écho)",
+            infectio_image_scannographique ~ "› Image scannographique",
+            infectio_hyperleucocytose ~ "› Hyperleucocytose / neutropénie",
+            infectio_pct ~ "› PCT positive",
+            infectio_crp ~ "› CRP positive",
+            infectio_pao2 ~ "› PaO2/FiO2 < 240 mmHg",
+            infectio_hemoculture_positive ~ "Hémoculture positive",
+            infectio_recidive_ppo ~ "Récidive de PPO",
+            infectio_adequation_atb_probabiliste ~ "› ATB probabiliste adéquate",
+            infectio_echec_traitement_initial ~ "› Échec traitement initial",
+            infectio_adaptation_atb_48h ~ "› Adaptation ATB à 48h",
+            infectio_resistance_phenotypique ~ "› Résistance phénotypique du germe",
+            postop_duree_sejour_reanimation ~ "Durée séjour réanimation (j)",
+            postop_duree_sejour_hopital ~ "Durée séjour hospitalier (j)",
+            postop_dc_reanimation ~ "Décès en réanimation",
+            postop_dc_hopital ~ "Décès hospitalier"
+        )
+    ) %>%
+    modify_header(label = "**Variables post-opératoires**") %>%
+    add_p(
+        test = list(
+            all_categorical() ~ "chisq.test",
+            all_continuous() ~ "t.test"
+        )
+    ) %>%
+    as_kable_extra(booktabs = TRUE, longtable = TRUE, linesep = "") %>%
+    kableExtra::kable_styling(
+        latex_options = c("repeat_header", "striped"),
+        repeat_header_text = "\\textit{(Suite)}",
+        stripe_color = "gray!10"
+    )
+
+table_postop
+```
+
+\newpage
+# Performance diagnostique de la colonisation pré-extubation pour prédire la pneumonie post-opératoire
+
+-   Chez les patients ayant un prélèvement positif (`df$infectio_colonisation_respi_preeot = 1`)
+
+    -    Pathogène isolé lors du prélèvement = `df$pathogene_preeot` ; `df$pathogene_preeot_2` ; `df$pathogene_preeot_3`
+
+    -    Pathogène isolé lors de la PPO = `df$pathogene_ppo` ; `df$pathogene_ppo_2` ; `df$pathogene_ppo_3`
+
+Dictionnaire valable pour ces variables pathogènes :
+
+````
+1=SAMS	2=FOP	3=E. faecium	4=C. freundii	5=H. alvei	6=K. pneumoniae	7=E.coli	8=P. aeruginosa	9=P. mirabilis	10=Corynebacterium	11=S. marcescens	12=E. aerogenes	13=E. faecalis	14=Haemophilus haemolyticus	15=A. baumanii	16=S. epidermidis	17=M. catarrhalis	18=S. haemolyticus	19=M. pneumoniae	20=E. cloacae	21=stenotrophomonas	22=pneumocoque
+````
+
+Pour calculer la performance diagnostique, il faut faire en sorte d'obtenir une sensibilité, une spécificité, une valeur prédictive positive et une valeur prédictive négative globale (qui correspond à pathogène pré-extubation correspondant au pathogène de la PPO). 
+```{r}
+#| label: performance-diagnostique
+#| include: true
+#| echo: false
+#| results: asis
+# Analyse limitée aux patients avec colonisation respiratoire pré-EOT positive
+df_perf <- df %>%
+    filter(infectio_colonisation_respi_preeot == 1) %>%
+    mutate(patient_id = row_number())
+
+# Passage en format long pour les pathogènes pré-EOT
+preeot_long <- df_perf %>%
+    select(patient_id, pathogene_preeot, pathogene_preeot_2, pathogene_preeot_3) %>%
+    pivot_longer(
+        cols = starts_with("pathogene_preeot"),
+        values_to = "pathogene_code"
+    ) %>%
+    filter(!is.na(pathogene_code) & pathogene_code != 0) %>%
+    distinct(patient_id, pathogene_code) %>%
+    mutate(preeot_present = TRUE)
+
+# Passage en format long pour les pathogènes PPO
+ppo_long <- df_perf %>%
+    select(patient_id, pathogene_ppo, pathogene_ppo_2, pathogene_ppo_3) %>%
+    pivot_longer(
+        cols = starts_with("pathogene_ppo"),
+        values_to = "pathogene_code"
+    ) %>%
+    filter(!is.na(pathogene_code) & pathogene_code != 0) %>%
+    distinct(patient_id, pathogene_code) %>%
+    mutate(ppo_present = TRUE)
+
+# Grille de toutes les combinaisons patient / pathogène (1 à 22)
+all_combinations <- expand_grid(
+    patient_id = df_perf$patient_id,
+    pathogene_code = 1:22
+)
+
+# Jointure pour table de contingence
+df_diag_pathogene <- all_combinations %>%
+    left_join(preeot_long, by = c("patient_id", "pathogene_code")) %>%
+    left_join(ppo_long, by = c("patient_id", "pathogene_code")) %>%
+    mutate(
+        preeot_present = coalesce(preeot_present, FALSE),
+        ppo_present = coalesce(ppo_present, FALSE)
+    )
+
+# Calcul des Vrai/Faux Positifs/Négatifs
+contingence <- df_diag_pathogene %>%
+    summarise(
+        TP = sum(preeot_present & ppo_present),
+        FP = sum(preeot_present & !ppo_present),
+        FN = sum(!preeot_present & ppo_present),
+        TN = sum(!preeot_present & !ppo_present)
+    )
+
+# Calcul des performances
+performance_diagnostique <- contingence %>%
+    mutate(
+        Sensibilite = case_when(TP + FN > 0 ~ TP / (TP + FN), .default = NA_real_),
+        Specificite = case_when(TN + FP > 0 ~ TN / (TN + FP), .default = NA_real_),
+        VPP = case_when(TP + FP > 0 ~ TP / (TP + FP), .default = NA_real_),
+        VPN = case_when(TN + FN > 0 ~ TN / (TN + FN), .default = NA_real_)
+    ) %>%
+    pivot_longer(
+        cols = c(Sensibilite, Specificite, VPP, VPN),
+        names_to = "Indicateur",
+        values_to = "Valeur"
+    ) %>%
+    mutate(
+        Formule = case_when(
+            Indicateur == "Sensibilite" ~ "TP / (TP + FN)",
+            Indicateur == "Specificite" ~ "TN / (TN + FP)",
+            Indicateur == "VPP" ~ "TP / (TP + FP)",
+            Indicateur == "VPN" ~ "TN / (TN + FN)"
+        ),
+        Indicateur = case_when(
+            Indicateur == "Sensibilite" ~ "Sensibilité",
+            Indicateur == "Specificite" ~ "Spécificité",
+            Indicateur == "VPP" ~ "Valeur prédictive positive",
+            Indicateur == "VPN" ~ "Valeur prédictive négative"
+        ),
+        Pourcentage = paste0(round(100 * Valeur, 1), "%")
+    ) %>%
+    select(Indicateur, Formule, Valeur, Pourcentage)
+
+#représentation en gt()
+performance_diagnostique %>%
+    gt::gt() %>%
+    gt::tab_footnote(
+        footnote = "Proportion de pathogènes de la PPO déjà présents en pré-extubation.",
+        locations = gt::cells_body(
+            columns = Indicateur,
+            rows = Indicateur == "Sensibilité"
+        )
+    ) %>%
+    gt::tab_footnote(
+        footnote = "Proportion de pathogènes absents de la PPO également absents en pré-extubation.",
+        locations = gt::cells_body(
+            columns = Indicateur,
+            rows = Indicateur == "Spécificité"
+        )
+    ) %>%
+    gt::tab_footnote(
+        footnote = "Proportion de pathogènes pré-extubation retrouvés ensuite dans la PPO.",
+        locations = gt::cells_body(
+            columns = Indicateur,
+            rows = Indicateur == "Valeur prédictive positive"
+        )
+    ) %>%
+    gt::tab_footnote(
+        footnote = "Proportion de pathogènes absents en pré-extubation également absents dans la PPO.",
+        locations = gt::cells_body(
+            columns = Indicateur,
+            rows = Indicateur == "Valeur prédictive négative"
+        )
+    ) %>%
+    gt::tab_source_note(
+        source_note = "Analyse par couple patient–pathogène, et non par patient."
+    )
+```
+
+::: {.callout-note title="Limites de l'approche Patient-Pathogène" collapse="false"}
+**Biais statistique :** Comme chaque patient n'a qu'1 ou 2 germes au maximum, la quasi-totalité des combinaisons de la grille combinatoire (patient $\times$ 22 pathogènes) sont des doubles absences (absence en Pré-EOT et absence en PPO). 
+
+Cela génère un nombre massif de Vrais Négatifs (TN), ce qui gonfle artificiellement la Spécificité (`r performance_diagnostique$Pourcentage[performance_diagnostique$Indicateur == "Spécificité"]`) et la VPN (`r performance_diagnostique$Pourcentage[performance_diagnostique$Indicateur == "Valeur prédictive négative"]`). Ces pourcentages élevés n'ont pas de réalité clinique directe au lit du malade.
+:::
+
+## Performances diagnostiques cliniques (Niveau Patient)
+
+L'approche la plus pertinente cliniquement consiste à évaluer la performance du prélèvement Pré-EOT au **niveau global du patient** ($N=`r sum(df$preeot_realise, na.rm = TRUE)`$). 
+
+La règle de jugement (Gold Standard) proposée est la suivante :
+
+
+-   **Vrai Positif (VP) :** Pré-EOT positif $\rightarrow$ PPO avec au moins un germe identique (Concordance), peu importe s'il y a de nouveaux germes en plus.
+
+-   **Faux Positif (FP) :** Pré-EOT positif $\rightarrow$ PPO discordante (germes différents) ou PPO stérile.
+
+-   **Vrai Négatif (VN) :** Pré-EOT stérile $\rightarrow$ PPO stérile.
+
+-   **Faux Négatif (FN) :** Pré-EOT stérile $\rightarrow$ PPO avec documentation bactériologique (nouveau germe).
+
+```{r}
+#| label: performance-diagnostique-patient
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+
+df_perf_pat <- df %>%
+    filter(preeot_realise) %>%
+    mutate(
+        Pre_EOT_Pos = preeot_colonise,
+        PPO_is_sterile = !ppo_documentee,
+        Concordance = as.integer(concordance_pathogene),
+        Class = case_when(
+            Pre_EOT_Pos & Concordance == 1 ~ "VP",
+            Pre_EOT_Pos & Concordance == 0 & !PPO_is_sterile ~ "FP (Discordant)",
+            Pre_EOT_Pos & PPO_is_sterile ~ "FP (PPO Stérile)",
+            !Pre_EOT_Pos & PPO_is_sterile ~ "VN",
+            !Pre_EOT_Pos & !PPO_is_sterile ~ "FN"
+        )
+    )
+
+vp <- sum(df_perf_pat$Class == "VP")
+fp <- sum(df_perf_pat$Class %in% c("FP (Discordant)", "FP (PPO Stérile)"))
+vn <- sum(df_perf_pat$Class == "VN")
+fn <- sum(df_perf_pat$Class == "FN")
+
+se <- vp / (vp + fn)
+sp <- vn / (vn + fp)
+vpp <- vp / (vp + fp)
+vpn <- vn / (vn + fn)
+
+perf_pat_table <- data.frame(
+  Indicateur = c("Sensibilité (Se)", "Spécificité (Sp)", "Valeur Prédictive Positive (VPP)", "Valeur Prédictive Négative (VPN)"),
+  Valeur = c(se, sp, vpp, vpn),
+  `Interprétation clinique` = c(
+    paste0("Parmi les PPO documentées microbiologiquement, ", round(se*100, 1), "% avaient au moins un germe déjà identifié en Pré-EOT (", vp, "/", vp+fn, ")."),
+    paste0("Parmi les prélèvements PPO sans documentation microbiologique, ", round(sp*100, 1), "% avaient un Pré-EOT stérile (", vn, "/", vn+fp, ")."),
+    paste0("Parmi les Pré-EOT positifs, ", round(vpp*100, 1), "% avaient au moins un germe concordant avec la PPO (", vp, "/", vp+fp, ")."),
+    paste0("Parmi les Pré-EOT stériles, ", round(vpn*100, 1), "% avaient une PPO sans documentation microbiologique (", vn, "/", vn+fn, ").")
+  ),
+  check.names = FALSE
+)
+
+perf_pat_table %>%
+  gt::gt() %>%
+  gt::fmt_percent(columns = Valeur, decimals = 1) %>%
+  gt::tab_header(
+    title = "Performances diagnostiques cliniques au niveau patient",
+    subtitle = paste0("Prédiction de la bactériologie de la PPO par le prélèvement Pré-EOT (N = ", vp+fp+vn+fn, " patients)")
+  ) %>%
+  gt::tab_options(
+    table.width = gt::pct(100),
+    column_labels.font.weight = "bold"
+  )
+```
+
+\newpage
+# Trajectoire des pathogènes (Sankey plots)
+
+## Sankey Global 
+
+-   Objectif : visualiser la transition des pathogènes identifiés en pré-extubation vers ceux identifiés lors de la pneumonie post-opératoire (PPO) pour l'ensemble des patients.
+
+```{r}
+#| label: sankey-global
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 12
+#| fig-height: 10
+
+preeot_list <- df %>%
+    select(patient_id = ID_numero, infectio_pathogene_preeot, infectio_pathogene_preeot_2, infectio_pathogene_preeot_3) %>%
+    pivot_longer(-patient_id, values_to = "node_preeot") %>%
+    filter(!is.na(node_preeot) & node_preeot != "Aucun") %>%
+    distinct(patient_id, node_preeot)
+
+ppo_list <- df %>%
+    select(patient_id = ID_numero, infectio_pathogene_ppo, infectio_pathogene_ppo_2, infectio_pathogene_ppo_3) %>%
+    pivot_longer(-patient_id, values_to = "node_ppo") %>%
+    filter(!is.na(node_ppo) & node_ppo != "Aucun") %>%
+    distinct(patient_id, node_ppo)
+
+sankey_data <- df %>%
+    select(patient_id = ID_numero) %>%
+    left_join(preeot_list, by = "patient_id") %>%
+    mutate(node_preeot = coalesce(as.character(node_preeot), "Aucun")) %>%
+    distinct() %>%
+    inner_join(
+        df %>%
+            select(patient_id = ID_numero) %>%
+            left_join(ppo_list, by = "patient_id") %>%
+            mutate(node_ppo = coalesce(as.character(node_ppo), "Aucun")) %>%
+            distinct(),
+        by = "patient_id",
+        relationship = "many-to-many"
+    )
+
+df_sankey_global <- sankey_data %>%
+    make_long(node_preeot, node_ppo) %>%
+    mutate(
+        node = factor(node, levels = c("Aucun", setdiff(sort(unique(node)), "Aucun"))),
+        next_node = factor(next_node, levels = c("Aucun", setdiff(sort(unique(next_node)), "Aucun")))
+    )
+
+ggplot(df_sankey_global, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = factor(node))) +
+    geom_sankey(flow.alpha = 0.6, node.color = "gray30", width = 0.1) +
+    geom_sankey_text(
+        aes(
+            label = node,
+            x = stage(x, after_stat = x + case_when(x == 1 ~ -0.06, .default = 0.06)),
+            hjust = case_when(x == "node_preeot" ~ 1, .default = 0)
+        ),
+        size = 3.9, color = "black"
+    ) +
+    scale_x_discrete(
+        labels = c("node_preeot" = "Prélèvement pré-extubation", "node_ppo" = "Prélèvement PPO"),
+        expand = expansion(mult = 0.4)
+    ) +
+    theme_sankey(base_size = 17) +
+    labs(
+        title = "Sankey Global : Évolution des pathogènes (Pré-EOT vers PPO)",
+        x = NULL
+    ) +
+    theme(legend.position = "none")
+```
+
+\newpage
+## Sankey chez les patients avec pathogène en Pré-EOT
+
+-   Objectif : devenir des patients ayant un pathogène identifié en pré-extubation (Pré-EOT) vers les pathogènes identifiés lors de la pneumonie post-opératoire (PPO).
+
+-   Les patients n'ayant pas de pathogène en Pré-EOT sont exclus de cette analyse.
+
+```{r}
+#| label: sankey-path-preeot
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 12
+#| fig-height: 10
+
+preeot_list <- df %>%
+    select(patient_id = ID_numero, infectio_pathogene_preeot, infectio_pathogene_preeot_2, infectio_pathogene_preeot_3) %>%
+    pivot_longer(-patient_id, values_to = "node_preeot") %>%
+    filter(!is.na(node_preeot) & node_preeot != "Aucun") %>%
+    distinct(patient_id, node_preeot)
+
+ppo_list <- df %>%
+    select(patient_id = ID_numero, infectio_pathogene_ppo, infectio_pathogene_ppo_2, infectio_pathogene_ppo_3) %>%
+    pivot_longer(-patient_id, values_to = "node_ppo") %>%
+    filter(!is.na(node_ppo) & node_ppo != "Aucun") %>%
+    distinct(patient_id, node_ppo)
+
+sankey_data <- df %>%
+    select(patient_id = ID_numero) %>%
+    left_join(preeot_list, by = "patient_id") %>%
+    mutate(node_preeot = coalesce(as.character(node_preeot), "Aucun")) %>%
+    distinct() %>%
+    inner_join(
+        df %>%
+            select(patient_id = ID_numero) %>%
+            left_join(ppo_list, by = "patient_id") %>%
+            mutate(node_ppo = coalesce(as.character(node_ppo), "Aucun")) %>%
+            distinct(),
+        by = "patient_id",
+        relationship = "many-to-many"
+    )
+
+# On filtre les patients qui ont eu un pathogène en Pré-EOT
+df_path_preeot <- sankey_data %>%
+    filter(node_preeot != "Aucun") %>%
+    make_long(node_preeot, node_ppo) %>%
+    mutate(
+        node = factor(node, levels = c("Aucun", setdiff(sort(unique(node)), "Aucun"))),
+        next_node = factor(next_node, levels = c("Aucun", setdiff(sort(unique(next_node)), "Aucun")))
+    )
+
+ggplot(df_path_preeot, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = factor(node))) +
+    geom_sankey(flow.alpha = 0.6, node.color = "gray30", width = 0.1) +
+    geom_sankey_text(
+        aes(
+            label = node,
+            x = stage(x, after_stat = x + case_when(x == 1 ~ -0.06, .default = 0.06)),
+            hjust = case_when(x == "node_preeot" ~ 1, .default = 0)
+        ),
+        size = 3.9, color = "black"
+    ) +
+    scale_x_discrete(
+        labels = c("node_preeot" = "Prélèvement pré-extubation", "node_ppo" = "Prélèvement PPO"),
+        expand = expansion(mult = 0.4)
+    ) +
+    theme_sankey(base_size = 17) +
+    labs(
+        title = "Devenir des patients avec un pathogène en Pré-EOT",
+        subtitle = "Montre les pathogènes PPO développés par ces patients (ou l'absence de PPO)",
+        x = NULL
+    ) +
+    theme(legend.position = "none")
+```
+
+\newpage
+## Sankey chez les patients sans pathogène en Pré-EOT
+
+-   Objectif : devenir des patients n'ayant aucun pathogène identifié en pré-extubation (Pré-EOT) vers les pathogènes identifiés lors de la pneumonie post-opératoire (PPO).
+
+```{r}
+#| label: sankey-aucun-preeot
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 12
+#| fig-height: 10
+
+preeot_list <- df %>%
+    select(patient_id = ID_numero, infectio_pathogene_preeot, infectio_pathogene_preeot_2, infectio_pathogene_preeot_3) %>%
+    pivot_longer(-patient_id, values_to = "node_preeot") %>%
+    filter(!is.na(node_preeot) & node_preeot != "Aucun") %>%
+    distinct(patient_id, node_preeot)
+
+ppo_list <- df %>%
+    select(patient_id = ID_numero, infectio_pathogene_ppo, infectio_pathogene_ppo_2, infectio_pathogene_ppo_3) %>%
+    pivot_longer(-patient_id, values_to = "node_ppo") %>%
+    filter(!is.na(node_ppo) & node_ppo != "Aucun") %>%
+    distinct(patient_id, node_ppo)
+
+sankey_data <- df %>%
+    select(patient_id = ID_numero) %>%
+    left_join(preeot_list, by = "patient_id") %>%
+    mutate(node_preeot = coalesce(as.character(node_preeot), "Aucun")) %>%
+    distinct() %>%
+    inner_join(
+        df %>%
+            select(patient_id = ID_numero) %>%
+            left_join(ppo_list, by = "patient_id") %>%
+            mutate(node_ppo = coalesce(as.character(node_ppo), "Aucun")) %>%
+            distinct(),
+        by = "patient_id",
+        relationship = "many-to-many"
+    )
+
+# On filtre les patients n'ayant AUCUN pathogène en Pré-EOT
+df_aucun_preeot <- sankey_data %>%
+    filter(node_preeot == "Aucun") %>%
+    make_long(node_preeot, node_ppo) %>%
+    mutate(
+        node = factor(node, levels = c("Aucun", setdiff(sort(unique(node)), "Aucun"))),
+        next_node = factor(next_node, levels = c("Aucun", setdiff(sort(unique(next_node)), "Aucun")))
+    )
+
+ggplot(df_aucun_preeot, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = factor(node))) +
+    geom_sankey(flow.alpha = 0.6, node.color = "gray30", width = 0.1) +
+    geom_sankey_text(
+        aes(
+            label = node,
+            x = stage(x, after_stat = x + case_when(x == 1 ~ -0.06, .default = 0.06)),
+            hjust = case_when(x == "node_preeot" ~ 1, .default = 0)
+        ),
+        size = 3.9, color = "black"
+    ) +
+    scale_x_discrete(
+        labels = c("node_preeot" = "Prélèvement pré-extubation", "node_ppo" = "Prélèvement PPO"),
+        expand = expansion(mult = 0.4)
+    ) +
+    theme_sankey(base_size = 17) +
+    labs(
+        title = "Devenir des patients sans pathogène en Pré-EOT",
+        subtitle = "Montre les pathogènes PPO développés par ces patients (ou l'absence de PPO)",
+        x = NULL
+    ) +
+    theme(legend.position = "none")
+```
+
+\newpage
+## Sankey chez les les patients n'ayant pas "Aucun" en PPO
+
+-   Objectif : visualiser la transition des pathogènes identifiés en pré-extubation vers ceux identifiés lors de la pneumonie post-opératoire (PPO) uniquement pour les patients ayant développé une PPO (PPO != "Aucun").
+
+```{r}
+#| label: sankey-ppo-origines
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 12
+#| fig-height: 10
+
+preeot_list <- df %>%
+    select(patient_id = ID_numero, infectio_pathogene_preeot, infectio_pathogene_preeot_2, infectio_pathogene_preeot_3) %>%
+    pivot_longer(-patient_id, values_to = "node_preeot") %>%
+    filter(!is.na(node_preeot) & node_preeot != "Aucun") %>%
+    distinct(patient_id, node_preeot)
+
+ppo_list <- df %>%
+    select(patient_id = ID_numero, infectio_pathogene_ppo, infectio_pathogene_ppo_2, infectio_pathogene_ppo_3) %>%
+    pivot_longer(-patient_id, values_to = "node_ppo") %>%
+    filter(!is.na(node_ppo) & node_ppo != "Aucun") %>%
+    distinct(patient_id, node_ppo)
+
+sankey_data <- df %>%
+    select(patient_id = ID_numero) %>%
+    left_join(preeot_list, by = "patient_id") %>%
+    mutate(node_preeot = coalesce(as.character(node_preeot), "Aucun")) %>%
+    distinct() %>%
+    inner_join(
+        df %>%
+            select(patient_id = ID_numero) %>%
+            left_join(ppo_list, by = "patient_id") %>%
+            mutate(node_ppo = coalesce(as.character(node_ppo), "Aucun")) %>%
+            distinct(),
+        by = "patient_id",
+        relationship = "many-to-many"
+    )
+
+# On se concentre sur les patients ayant développé une pneumonie (PPO != "Aucun")
+df_ppo_origines <- sankey_data %>%
+    filter(node_ppo != "Aucun") %>%
+    make_long(node_preeot, node_ppo) %>%
+    mutate(
+        node = factor(node, levels = c("Aucun", setdiff(sort(unique(node)), "Aucun"))),
+        next_node = factor(next_node, levels = c("Aucun", setdiff(sort(unique(next_node)), "Aucun")))
+    )
+
+ggplot(df_ppo_origines, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = factor(node))) +
+    geom_sankey(flow.alpha = 0.6, node.color = "gray30", width = 0.1) +
+    geom_sankey_text(
+        aes(
+            label = node,
+            x = stage(x, after_stat = x + case_when(x == 1 ~ -0.06, .default = 0.06)),
+            hjust = case_when(x == "node_preeot" ~ 1, .default = 0)
+        ),
+        size = 3.9, color = "black"
+    ) +
+    scale_x_discrete(
+        labels = c("node_preeot" = "Prélèvement pré-extubation", "node_ppo" = "Prélèvement PPO"),
+        expand = expansion(mult = 0.4)
+    ) +
+    theme_sankey(base_size = 17) +
+    labs(
+        title = "Filtré aux prélèvements positifs chez PPO",
+        subtitle = "Montre les pathogènes pré-extubation à l'origine des pathogènes PPO",
+        x = NULL
+    ) +
+    theme(legend.position = "none")
+```
+
+\newpage
+## Sankey chez les patients ayant FOP en Pré-EOT
+
+-   Objectif : visualiser la transition des patients ayant FOP identifié en pré-extubation vers les pathogènes identifiés lors de la pneumonie post-opératoire (PPO).
+
+```{r}
+#| label: sankey-fop
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 12
+#| fig-height: 8
+
+preeot_list <- df %>%
+    select(patient_id = ID_numero, infectio_pathogene_preeot, infectio_pathogene_preeot_2, infectio_pathogene_preeot_3) %>%
+    pivot_longer(-patient_id, values_to = "node_preeot") %>%
+    filter(!is.na(node_preeot) & node_preeot != "Aucun") %>%
+    distinct(patient_id, node_preeot)
+
+ppo_list <- df %>%
+    select(patient_id = ID_numero, infectio_pathogene_ppo, infectio_pathogene_ppo_2, infectio_pathogene_ppo_3) %>%
+    pivot_longer(-patient_id, values_to = "node_ppo") %>%
+    filter(!is.na(node_ppo) & node_ppo != "Aucun") %>%
+    distinct(patient_id, node_ppo)
+
+sankey_data <- df %>%
+    select(patient_id = ID_numero) %>%
+    left_join(preeot_list, by = "patient_id") %>%
+    mutate(node_preeot = coalesce(as.character(node_preeot), "Aucun")) %>%
+    distinct() %>%
+    inner_join(
+        df %>%
+            select(patient_id = ID_numero) %>%
+            left_join(ppo_list, by = "patient_id") %>%
+            mutate(node_ppo = coalesce(as.character(node_ppo), "Aucun")) %>%
+            distinct(),
+        by = "patient_id",
+        relationship = "many-to-many"
+    )
+
+# On se concentre sur les patients ayant FOP en Pré-EOT
+df_fop <- sankey_data %>%
+    filter(node_preeot == "FOP") %>%
+    make_long(node_preeot, node_ppo) %>%
+    mutate(
+        node = factor(node, levels = c("Aucun", setdiff(sort(unique(node)), "Aucun"))),
+        next_node = factor(next_node, levels = c("Aucun", setdiff(sort(unique(next_node)), "Aucun")))
+    )
+
+ggplot(df_fop, aes(x = x, next_x = next_x, node = node, next_node = next_node, fill = factor(node))) +
+    geom_sankey(flow.alpha = 0.6, node.color = "gray30", width = 0.1) +
+    geom_sankey_text(
+        aes(
+            label = node,
+            x = stage(x, after_stat = x + case_when(x == 1 ~ -0.06, .default = 0.06)),
+            hjust = case_when(x == "node_preeot" ~ 1, .default = 0)
+        ),
+        size = 3.9, color = "black"
+    ) +
+    scale_x_discrete(
+        labels = c("node_preeot" = "Prélèvement pré-extubation", "node_ppo" = "Prélèvement PPO"),
+        expand = expansion(mult = 0.4)
+    ) +
+    theme_sankey(base_size = 17) +
+    labs(
+        title = "Devenir des patients avec FOP en Pré-EOT",
+        x = NULL
+    ) +
+    theme(legend.position = "none")
+```
+
+\newpage
+## Diagramme Alluvial au niveau patient
+
+-   Diagrammes de Sankey par pathogène présentés ci-dessus réalisent des produits cartésiens intra-patient qui peuvent suggérer des transitions biologiques artificielles (ex: un germe se transformant en un autre). 
+
+-   Autre proposition : diagramme alluvial au niveau patient pour les patients ayant eu un prélèvement Pré-EOT ($N=`r sum(df$preeot_realise, na.rm = TRUE)`$). 
+
+```{r}
+#| label: alluvial-patient
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 10
+#| fig-height: 6
+
+df_alluvial_base <- df %>%
+  filter(preeot_realise) %>%
+  mutate(
+    Pre_EOT = case_when(
+      !preeot_colonise ~ "Pr\u00e9l\u00e8vement effectu\u00e9 : n\u00e9gatif",
+      .default = "Pr\u00e9l\u00e8vement effectu\u00e9 : positif"
+    ),
+    PPO_is_sterile = !ppo_documentee,
+    Concordance = as.integer(concordance_pathogene),
+    PPO_Status = case_when(
+      PPO_is_sterile ~ "Pr\u00e9l\u00e8vement n\u00e9gatif",
+      Pre_EOT == "Pr\u00e9l\u00e8vement effectu\u00e9 : positif" & Concordance == 1 ~ "Pr\u00e9l\u00e8vement positif : concordant",
+      .default = "Pr\u00e9l\u00e8vement positif : discordant"
+    ),
+    Pre_EOT = factor(Pre_EOT, levels = c("Pr\u00e9l\u00e8vement effectu\u00e9 : positif", "Pr\u00e9l\u00e8vement effectu\u00e9 : n\u00e9gatif")),
+    PPO_Status = factor(PPO_Status, levels = c("Pr\u00e9l\u00e8vement positif : concordant", "Pr\u00e9l\u00e8vement positif : discordant", "Pr\u00e9l\u00e8vement n\u00e9gatif"))
+  )
+
+df_alluvial <- df_alluvial_base %>%
+  count(Pre_EOT, PPO_Status)
+
+ggplot(df_alluvial, aes(y = n, axis1 = Pre_EOT, axis2 = PPO_Status)) +
+  geom_alluvium(aes(fill = PPO_Status), width = 1/12) +
+  geom_stratum(width = 1/12, fill = "grey95", color = "grey30") +
+  geom_text(stat = "stratum", aes(
+    label = after_stat(stratum), 
+    x = after_stat(x + case_when(x == 1 ~ -0.07, .default = 0.07)),
+    hjust = after_stat(case_when(x == 1 ~ 1, .default = 0))
+  ), size = 4.5) +
+  scale_x_discrete(limits = c("Pr\u00e9-EOT (Pr\u00e9-extubation)", "PPO (Pneumonie)"), expand = c(.6, .6)) +
+  scale_fill_manual(values = c(
+    "Pr\u00e9l\u00e8vement positif : concordant" = "#2ecc71",
+    "Pr\u00e9l\u00e8vement positif : discordant" = "#e74c3c",
+    "Pr\u00e9l\u00e8vement n\u00e9gatif" = "#95a5a6"
+  )) +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Diagramme Alluvial Patient : Du statut Pr\u00e9-EOT au r\u00e9sultat PPO",
+    y = "Nombre de patients",
+    x = NULL
+  ) +
+  theme(
+    legend.position = "none", 
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(10, 40, 10, 10)
+  ) +
+  coord_cartesian(clip = "off")
+```
+
+### Diagramme Alluvial selon le délai de survenue de la PPO
+
+Séparatation en 
+
+-   PPO précoces (< 7 jours) : N=`r sum(df$preeot_realise & df$delai_preEOT_PPO < 7, na.rm = TRUE)`
+
+-   PPO tardives (≥ 7 jours) : N=`r sum(df$preeot_realise & (df$delai_preEOT_PPO >= 7 | is.na(df$delai_preEOT_PPO)), na.rm = TRUE)`
+
+
+
+```{r}
+#| label: alluvial-patient-delai-precoce
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 10
+#| fig-height: 6
+
+df_alluvial_precoce <- df %>%
+    filter(preeot_realise, delai_preEOT_PPO < 7) %>%
+    mutate(
+        Pre_EOT = case_when(
+            !preeot_colonise ~ "Pr\u00e9l\u00e8vement effectu\u00e9 : n\u00e9gatif",
+            .default = "Pr\u00e9l\u00e8vement effectu\u00e9 : positif"
+        ),
+        PPO_Status = case_when(
+            !ppo_documentee ~ "Pr\u00e9l\u00e8vement n\u00e9gatif",
+            preeot_colonise & concordance_pathogene ~ "Pr\u00e9l\u00e8vement positif : concordant",
+            .default = "Pr\u00e9l\u00e8vement positif : discordant"
+        ),
+        Pre_EOT = factor(Pre_EOT, levels = c("Pr\u00e9l\u00e8vement effectu\u00e9 : positif", "Pr\u00e9l\u00e8vement effectu\u00e9 : n\u00e9gatif")),
+        PPO_Status = factor(PPO_Status, levels = c("Pr\u00e9l\u00e8vement positif : concordant", "Pr\u00e9l\u00e8vement positif : discordant", "Pr\u00e9l\u00e8vement n\u00e9gatif"))
+    ) %>%
+    count(Pre_EOT, PPO_Status)
+
+ggplot(df_alluvial_precoce, aes(y = n, axis1 = Pre_EOT, axis2 = PPO_Status)) +
+    geom_alluvium(aes(fill = PPO_Status), width = 1/12) +
+    geom_stratum(width = 1/12, fill = "grey95", color = "grey30") +
+    geom_text(stat = "stratum", aes(
+        label = after_stat(stratum),
+        x = after_stat(x + case_when(x == 1 ~ -0.07, .default = 0.07)),
+        hjust = after_stat(case_when(x == 1 ~ 1, .default = 0))
+    ), size = 4.5) +
+    scale_x_discrete(limits = c("Pr\u00e9-EOT", "PPO"), expand = c(.6, .6)) +
+    scale_fill_manual(values = c(
+        "Pr\u00e9l\u00e8vement positif : concordant" = "#2ecc71",
+        "Pr\u00e9l\u00e8vement positif : discordant" = "#e74c3c",
+        "Pr\u00e9l\u00e8vement n\u00e9gatif" = "#95a5a6"
+    )) +
+    theme_minimal(base_size = 14) +
+    labs(
+        title = paste0("PPO pr\u00e9coces (< 7 jours) (N=", sum(df$preeot_realise & df$delai_preEOT_PPO < 7, na.rm = TRUE), ")"),
+        y = "Nombre de patients",
+        x = NULL
+    ) +
+    theme(
+        legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.margin = margin(10, 40, 10, 10)
+    ) +
+    coord_cartesian(clip = "off")
+```
+
+```{r}
+#| label: alluvial-patient-delai-tardif
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 10
+#| fig-height: 6
+
+df_alluvial_tardif <- df %>%
+    filter(preeot_realise, delai_preEOT_PPO >= 7 | is.na(delai_preEOT_PPO)) %>%
+    mutate(
+        Pre_EOT = case_when(
+            !preeot_colonise ~ "Pr\u00e9l\u00e8vement effectu\u00e9 : n\u00e9gatif",
+            .default = "Pr\u00e9l\u00e8vement effectu\u00e9 : positif"
+        ),
+        PPO_Status = case_when(
+            !ppo_documentee ~ "Pr\u00e9l\u00e8vement n\u00e9gatif",
+            preeot_colonise & concordance_pathogene ~ "Pr\u00e9l\u00e8vement positif : concordant",
+            .default = "Pr\u00e9l\u00e8vement positif : discordant"
+        ),
+        Pre_EOT = factor(Pre_EOT, levels = c("Pr\u00e9l\u00e8vement effectu\u00e9 : positif", "Pr\u00e9l\u00e8vement effectu\u00e9 : n\u00e9gatif")),
+        PPO_Status = factor(PPO_Status, levels = c("Pr\u00e9l\u00e8vement positif : concordant", "Pr\u00e9l\u00e8vement positif : discordant", "Pr\u00e9l\u00e8vement n\u00e9gatif"))
+    ) %>%
+    count(Pre_EOT, PPO_Status)
+
+ggplot(df_alluvial_tardif, aes(y = n, axis1 = Pre_EOT, axis2 = PPO_Status)) +
+    geom_alluvium(aes(fill = PPO_Status), width = 1/12) +
+    geom_stratum(width = 1/12, fill = "grey95", color = "grey30") +
+    geom_text(stat = "stratum", aes(
+        label = after_stat(stratum),
+        x = after_stat(x + case_when(x == 1 ~ -0.07, .default = 0.07)),
+        hjust = after_stat(case_when(x == 1 ~ 1, .default = 0))
+    ), size = 4.5) +
+    scale_x_discrete(limits = c("Pr\u00e9-EOT", "PPO"), expand = c(.6, .6)) +
+    scale_fill_manual(values = c(
+        "Pr\u00e9l\u00e8vement positif : concordant" = "#2ecc71",
+        "Pr\u00e9l\u00e8vement positif : discordant" = "#e74c3c",
+        "Pr\u00e9l\u00e8vement n\u00e9gatif" = "#95a5a6"
+    )) +
+    theme_minimal(base_size = 14) +
+    labs(
+        title = paste0("PPO tardives (\u2265 7 jours) (N=", sum(df$preeot_realise & (df$delai_preEOT_PPO >= 7 | is.na(df$delai_preEOT_PPO)), na.rm = TRUE), ")"),
+        y = "Nombre de patients",
+        x = NULL
+    ) +
+    theme(
+        legend.position = "none",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        plot.margin = margin(10, 40, 10, 10)
+    ) +
+    coord_cartesian(clip = "off")
+```
+
+\newpage
+## Comparaison écologique des pathogènes
+
+-   Fréquence d'isolement de chaque pathogène en pré-EOT (exprimée en pourcentage des `r sum(df$preeot_colonise, na.rm = TRUE)` patients colonisés) comparée à sa fréquence en PPO (exprimée en pourcentage des `r nrow(df)` patients de la cohorte). 
+
+```{r}
+#| label: barplot-ecologie
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 10
+#| fig-height: 7
+
+pathogene_labels <- c("Aucun", "SAMS", "FOP", "E. faecium", "C. freundii", "H. alvei", "K. pneumoniae", "E.coli", "P. aeruginosa", "P. mirabilis", "Corynebacterium", "S. marcescens", "E. aerogenes", "E. faecalis", "H. influenzae", "A. baumanii", "S. epidermidis", "M. catarrhalis", "S. haemolyticus", "M. pneumoniae", "E. cloacae", "Stenotrophomonas", "Pneumocoque")
+n_preeot_colonise <- sum(df$preeot_colonise, na.rm = TRUE)
+n_cohorte <- nrow(df)
+preeot_source_label <- paste0("Pré-EOT (N=", n_preeot_colonise, ")")
+ppo_source_label <- paste0("PPO (N=", n_cohorte, ")")
+
+preeot_freq <- df %>%
+  filter(preeot_colonise) %>%
+  select(Numero, pathogene_preeot, pathogene_preeot_2, pathogene_preeot_3) %>%
+  pivot_longer(cols = starts_with("pathogene_"), values_to = "code") %>%
+  filter(!is.na(code) & code != 0) %>%
+  distinct(Numero, code) %>%
+  count(code) %>%
+  mutate(
+    Pct = n / n_preeot_colonise,
+    Source = preeot_source_label
+  )
+
+ppo_freq <- df %>%
+  select(Numero, pathogene_ppo, pathogene_ppo_2, pathogene_ppo_3) %>%
+  pivot_longer(cols = starts_with("pathogene_"), values_to = "code") %>%
+  filter(!is.na(code) & code != 0) %>%
+  distinct(Numero, code) %>%
+  count(code) %>%
+  mutate(
+    Pct = n / n_cohorte,
+    Source = ppo_source_label
+  )
+
+germes_comp <- bind_rows(preeot_freq, ppo_freq) %>%
+  mutate(Pathogene = pathogene_labels[code + 1])
+
+ggplot(germes_comp, aes(x = reorder(Pathogene, Pct), y = Pct, fill = Source)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_manual(values = setNames(c("#2ecc71", "#e74c3c"), c(preeot_source_label, ppo_source_label))) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Comparaison de l'écologie bactérienne (Pré-EOT vs PPO)",
+    x = "Pathogène",
+    y = "Fréquence (% de patients)",
+    fill = "Prélèvement"
+  ) +
+  theme(legend.position = "bottom")
+```
+
+\newpage
+# ROC performance pathogène selon délai de survenue de la PPO
+
+-   Délai de survenue de la PPO codé dans la variable `df$delai_preEOT_PPO` (en jours).
+
+-   Visualisation de la performance diagnostique de la colonisation pré-extubation pour prédire la concordance du pathogène de la PPO selon le délai de survenue de la pneumonie post-opératoire (PPO).
+
+**Population analysée pour la ROC :**
+
+```{r}
+#| label: roc-population
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+
+df_roc <- df %>%
+    filter(preeot_colonise, !is.na(delai_preEOT_PPO))
+
+df_roc$pathogene_correspondance <- as.integer(df_roc$concordance_pathogene)
+
+roc_population <- tibble::tibble(
+    Population = c(
+        "Cohorte totale avec PPO",
+        "Patients avec prélèvement Pré-EOT colonisé inclus dans la ROC",
+        "Patients Pré-EOT stériles/non colonisés exclus",
+        "Patients colonisés avec délai Pré-EOT → PPO manquant exclus"
+    ),
+    N = c(
+        nrow(df),
+        nrow(df_roc),
+        sum(!df$preeot_colonise, na.rm = TRUE),
+        sum(df$preeot_colonise & is.na(df$delai_preEOT_PPO), na.rm = TRUE)
+    )
+)
+
+roc_population %>%
+    gt() %>%
+    cols_label(
+        Population = "Population",
+        N = "N"
+    ) %>%
+    tab_header(
+        title = md("**Population analysée pour la courbe ROC**")
+    )
+```
+
+La courbe ROC est donc calculée uniquement chez les patients ayant au moins un germe identifié au prélèvement Pré-EOT. 
+
+Elle évalue, dans cette population déjà colonisée, si le délai Pré-EOT → PPO discrimine la concordance du pathogène ; les prélèvements Pré-EOT stériles ou sans germe ne sont pas inclus dans cette analyse.
+
+```{r}
+#| label: roc-delai-ppo
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 8
+#| fig-height: 6
+
+# Préparation des données pour l'analyse ROC
+df_roc <- df %>%
+    filter(preeot_colonise, !is.na(delai_preEOT_PPO))
+
+# Calcul de la concordance (le pathogène PPO est-il le même que le Pré-EOT ?)
+df_roc$pathogene_correspondance <- as.integer(df_roc$concordance_pathogene)
+
+# Objet ROC (Prédicteur = Délai, Outcome = Concordance)
+# Note : pROC détermine automatiquement que les délais courts prédisent la concordance (direction ">")
+roc_obj <- roc(df_roc$pathogene_correspondance, df_roc$delai_preEOT_PPO, quiet = TRUE)
+
+# Extraction des coordonnées du seuil optimal selon l'indice de Youden
+coords_youden <- coords(roc_obj, "best", best.method = "youden", ret = c("threshold", "specificity", "sensitivity"))
+seuil_opti <- coords_youden$threshold[1]
+spec_opti <- coords_youden$specificity[1]
+sens_opti <- coords_youden$sensitivity[1]
+
+# Validation par Bootstrap (10000 réplications)
+set.seed(123)
+ci_auc_boot <- ci.auc(roc_obj, method = "bootstrap", boot.n = 10000)
+
+# Tracé de la courbe ROC
+p_roc <- ggroc(roc_obj, colour = "#2980b9", size = 1) +
+    geom_abline(slope = 1, intercept = 1, linetype = "dashed", color = "gray50") +
+    annotate("text", x = 0.25, y = 0.25, 
+             label = paste("AUC =", round(auc(roc_obj), 3), 
+                           "\nIC 95% (Bootstrap 10k) : [", round(ci_auc_boot[1], 3), "-", round(ci_auc_boot[3], 3), "]"), 
+             size = 4.5, fontface = "bold") +
+    annotate("point", x = spec_opti, y = sens_opti, color = "#e74c3c", size = 4) +
+    annotate("text", x = spec_opti, y = sens_opti + 0.05, 
+             label = paste("Seuil optimal (Youden)\n<", round(seuil_opti, 1), "jours"), color = "#e74c3c", fontface = "bold") +
+    theme_minimal(base_size = 14) +
+    labs(
+        title = "Courbe ROC : Prédiction de la concordance du pathogène",
+        x = "Spécificité (Taux de Vrais Négatifs)",
+        y = "Sensibilité (Taux de Vrais Positifs)"
+    )
+print(p_roc)
+```
+
+**Tableau détaillé des performances (Se, Sp, Indice de Youden) pour chaque seuil de délai :**
+
+```{r}
+#| label: roc-table-delai
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+
+df_roc <- df %>%
+    filter(preeot_colonise, !is.na(delai_preEOT_PPO)) %>%
+    mutate(pathogene_correspondance = as.integer(concordance_pathogene))
+
+roc_obj <- roc(df_roc$pathogene_correspondance, df_roc$delai_preEOT_PPO, quiet = TRUE)
+coords_youden <- coords(roc_obj, "best", best.method = "youden", ret = c("threshold", "specificity", "sensitivity"))
+seuil_opti <- coords_youden$threshold[1]
+spec_opti <- coords_youden$specificity[1]
+sens_opti <- coords_youden$sensitivity[1]
+
+set.seed(123)
+ci_auc_boot <- ci.auc(roc_obj, method = "bootstrap", boot.n = 10000)
+
+# Extraction de toutes les coordonnées pour construire le tableau
+all_coords <- coords(roc_obj, "all", ret = c("threshold", "specificity", "sensitivity"))
+all_coords$youden <- all_coords$sensitivity + all_coords$specificity - 1
+
+# Filtrage pour enlever les seuils infinis générés par pROC (-Inf, Inf)
+all_coords <- all_coords %>%
+    filter(is.finite(threshold)) %>%
+    arrange(threshold) %>%
+    mutate(
+        Regle_Decision = paste("<", threshold, "jours"),
+        Sensibilite = round(sensitivity * 100, 1),
+        Specificite = round(specificity * 100, 1),
+        Indice_Youden = round(youden, 3)
+    ) %>%
+    select(`Délai (seuil)` = threshold, `Règle de décision` = Regle_Decision, `Sensibilité (%)` = Sensibilite, `Spécificité (%)` = Specificite, `Indice de Youden` = Indice_Youden)
+
+# Affichage avec gt
+all_coords %>%
+    gt() %>%
+    tab_style(
+        style = cell_text(weight = "bold"),
+        locations = cells_body(rows = `Délai (seuil)` == seuil_opti)
+    )
+```
+
+:::{.callout-note title="Interprétation"}
+
+- Le délai entre le prélèvement Pré-EOT et la PPO garde une capacité discriminante correcte dans le recueil courant (AUC = `r round(as.numeric(auc(roc_obj)), 3)`, IC 95% bootstrap [`r round(ci_auc_boot[1], 3)` ; `r round(ci_auc_boot[3], 3)`]).
+
+- Le seuil optimal de Youden recalculé est < `r round(seuil_opti, 1)` jours, avec une sensibilité de `r paste0(round(100 * sens_opti, 1), "%")` et une spécificité de `r paste0(round(100 * spec_opti, 1), "%")`.
+
+- Les seuils détaillés, leur sensibilité, leur spécificité et l'indice de Youden sont recalculés dans le tableau ci-dessus.
+
+:::
+
+::: {.callout-warning title="Attention à l'interprétation"}
+- **Limites de l'analyse ROC :** construite sur échantillon restreint de $N=`r nrow(df_roc)`$ patients colonisés en Pré-EOT (comprenant `r sum(df_roc$pathogene_correspondance == 0, na.rm = TRUE)` non-événements de concordance). Une telle taille d'échantillon rend la courbe ROC et la recherche d'un seuil optimal par Youden très instables et statistiquement peu robustes.
+
+-   Autre possibilité : présentation simplifiée par tranche clinique
+:::
+
+## Présentation par tranche clinique
+
+-   Taux de concordance réel des germes selon 3 catégories de délais. Les taux et numérateurs/dénominateurs sont recalculés directement dans le graphique ci-dessous.
+
+```{r}
+#| label: barplot-concordance-delai
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 8
+#| fig-height: 5
+
+df_delai_barplot <- df %>%
+  filter(preeot_colonise, !is.na(delai_preEOT_PPO)) %>%
+  mutate(
+    pathogene_correspondance = as.integer(concordance_pathogene),
+    delai_cat = case_when(
+      delai_preEOT_PPO <= 2 ~ "Très précoce (\u2264 2 jours)",
+      delai_preEOT_PPO <= 5 ~ "Intermédiaire (3-5 jours)",
+      .default = "Tardive (> 5 jours)"
+    ),
+    delai_cat = factor(delai_cat, levels = c("Très précoce (\u2264 2 jours)", "Intermédiaire (3-5 jours)", "Tardive (> 5 jours)"))
+  ) %>%
+  group_by(delai_cat) %>%
+  summarise(
+    N = n(),
+    Concordant = sum(pathogene_correspondance),
+    Pct = Concordant / N,
+    .groups = "drop"
+  )
+
+ggplot(df_delai_barplot, aes(x = delai_cat, y = Pct, fill = delai_cat)) +
+  geom_bar(stat = "identity", width = 0.5, show.legend = FALSE) +
+  geom_text(aes(label = paste0(round(100 * Pct, 1), "%\n(N=", Concordant, "/", N, ")")), vjust = -0.3, fontface = "bold", size = 4) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1.1)) +
+  scale_fill_manual(values = c("Très précoce (\u2264 2 jours)" = "#27ae60", "Intermédiaire (3-5 jours)" = "#f39c12", "Tardive (> 5 jours)" = "#c0392b")) +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Taux de concordance des germes selon le délai de survenue de la PPO",
+    x = "Délai (jours entre le prélèvement pré-EOT et le diagnostic de PPO)",
+    y = "Taux de concordance (%)"
+  )
+```
+
+On peut aussi le représenter sous forme de diagramme cartésien lissé : évolution du taux de concordance jour par jour avec une courbe de tendance.
+
+```{r}
+#| label: lineplot-concordance-delai
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+
+df_delai_lineplot <- df %>%
+    filter(
+        preeot_colonise,
+        !is.na(delai_preEOT_PPO),
+        !is.na(concordance_pathogene)
+    ) %>%
+    mutate(
+        pathogene_correspondance = as.integer(concordance_pathogene),
+        delai_jours = as.numeric(delai_preEOT_PPO)
+    )
+
+# Calcul des taux par jour pour les points
+df_daily <- df_delai_lineplot %>%
+    group_by(delai_jours) %>%
+    summarise(
+        N = n(),
+        Concordant = sum(pathogene_correspondance),
+        Pct = Concordant / N,
+        .groups = "drop"
+    )
+
+rects <- data.frame(
+    xmin = c(-0.5, 2.5, 5.5),
+    xmax = c(2.5, 5.5, 12.0),
+    ymin = -Inf,
+    ymax = Inf,
+    Tranche = factor(c("Très précoce (\u2264 2 jours)", "Intermédiaire (3-5 jours)", "Tardive (> 5 jours)"),
+                     levels = c("Très précoce (\u2264 2 jours)", "Intermédiaire (3-5 jours)", "Tardive (> 5 jours)"))
+)
+
+ggplot() +
+    # Zones colorées en arrière-plan avec légende
+    geom_rect(data = rects, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = Tranche), alpha = 0.08, inherit.aes = FALSE) +
+    scale_fill_manual(
+        values = c("Très précoce (\u2264 2 jours)" = "#27ae60", "Intermédiaire (3-5 jours)" = "#f39c12", "Tardive (> 5 jours)" = "#c0392b"),
+        name = "Délai de la PPO"
+    ) +
+    # Courbe de tendance lissée (LOESS) basée sur les données individuelles
+    geom_smooth(data = df_delai_lineplot, aes(x = delai_jours, y = pathogene_correspondance), 
+                method = "loess", span = 0.95, se = FALSE, color = "#2c3e50", linewidth = 1.2) +
+    # Points de données par jour
+    geom_point(data = df_daily, aes(x = delai_jours, y = Pct, size = N), color = "#2c3e50", alpha = 0.7) +
+    # Libellés des points (avec ggrepel pour éviter les superpositions)
+    geom_text_repel(
+        data = df_daily,
+        aes(x = delai_jours, y = Pct, label = paste0(round(100 * Pct, 1), "% (", Concordant, "/", N, ")")),
+        size = 3.2,
+        fontface = "bold",
+        color = "#2c3e50",
+        box.padding = 0.4,
+        point.padding = 0.3,
+        max.overlaps = Inf
+    ) +
+    scale_y_continuous(
+        labels = scales::percent_format(accuracy = 1),
+        limits = c(-0.05, 1.05)
+    ) +
+    scale_x_continuous(
+        breaks = 0:11,
+        limits = c(-0.5, 12.0)
+    ) +
+    scale_size_continuous(
+        range = c(2.5, 6),
+        breaks = c(1, 5, 10, 15),
+        name = "Nombre de patients"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold", size = 12, hjust = 0.5),
+        legend.position = "right",
+        plot.margin = margin(10, 15, 10, 10)
+    ) +
+    labs(
+        title = "Taux de concordance lissé selon le délai de survenue de la PPO",
+        x = "Délai (jours)",
+        y = "Taux de concordance (%)"
+    )
+```
+
+\newpage
+# Concordance selon le caractère précoce ou tardif de la PPO
+
+## Tableau croisé de la concordance selon le délai de survenue de la PPO
+
+Ce tableau compare la concordance des pathogènes entre les PPO précoces (< 7 jours) et les PPO tardives (≥ 7 jours post-opératoires)
+
+- **Méthode :** Tableau croisé affichant la répartition brute de la concordance selon que la pneumonie soit précoce (< 7 jours) ou tardive.
+
+- **Patients retenus :** L'ensemble des `r sum(df$preeot_realise, na.rm = TRUE)` patients ayant eu un test pré-EOT. 
+
+```{r}
+#| label: concordance-precoce-tardive
+#| include: true
+#| echo: false
+#| tbl-cap: "Tableau croisé : Concordance selon le délai de survenue de la PPO"
+#| message: false
+#| warning: false
+
+df_delai <- df %>%
+    filter(preeot_realise) %>%
+    mutate(
+        Concordance_Binary = as.integer(concordance_pathogene),
+        Type_PPO = factor(
+            case_when(delai_preEOT_PPO < 7 ~ "PPO Précoce (< 7 jours)", .default = "PPO Tardive (\U2265 7 jours)"),
+            levels = c("PPO Tardive (\U2265 7 jours)", "PPO Précoce (< 7 jours)")
+        ),
+        delai_2j = factor(
+            case_when(delai_preEOT_PPO <= 2 ~ "\u2264 2 jours", .default = "> 2 jours"),
+            levels = c("> 2 jours", "\u2264 2 jours")
+        ),
+        delai_5j = factor(
+            case_when(delai_preEOT_PPO <= 5 ~ "\u2264 5 jours", .default = "> 5 jours"),
+            levels = c("> 5 jours", "\u2264 5 jours")
+        ),
+        score_sofa = as.numeric(score_sofa)
+    )
+
+tab_2j <- table(df_delai$delai_2j, df_delai$Concordance_Binary)
+p_2j <- fisher.test(tab_2j)$p.value
+desc_2j <- tibble::tibble(
+    Seuil = "Seuil à 2 jours",
+    Groupe = levels(df_delai$delai_2j)[c(2, 1)],
+    Concordants = c(
+        paste0(tab_2j[2, 2], "/", sum(tab_2j[2, ]), " (", round(100 * tab_2j[2, 2] / sum(tab_2j[2, ]), 1), "%)"),
+        paste0(tab_2j[1, 2], "/", sum(tab_2j[1, ]), " (", round(100 * tab_2j[1, 2] / sum(tab_2j[1, ]), 1), "%)")
+    ),
+    p_value = c(case_when(p_2j < 0.001 ~ "<0.001", .default = sprintf("%.3f", p_2j)), "")
+)
+
+tab_5j <- table(df_delai$delai_5j, df_delai$Concordance_Binary)
+p_5j <- fisher.test(tab_5j)$p.value
+desc_5j <- tibble::tibble(
+    Seuil = "Seuil à 5 jours",
+    Groupe = levels(df_delai$delai_5j)[c(2, 1)],
+    Concordants = c(
+        paste0(tab_5j[2, 2], "/", sum(tab_5j[2, ]), " (", round(100 * tab_5j[2, 2] / sum(tab_5j[2, ]), 1), "%)"),
+        paste0(tab_5j[1, 2], "/", sum(tab_5j[1, ]), " (", round(100 * tab_5j[1, 2] / sum(tab_5j[1, ]), 1), "%)")
+    ),
+    p_value = c(case_when(p_5j < 0.001 ~ "<0.001", .default = sprintf("%.3f", p_5j)), "")
+)
+
+tab_7j <- table(df_delai$Type_PPO, df_delai$Concordance_Binary)
+p_7j <- fisher.test(tab_7j)$p.value
+desc_7j <- tibble::tibble(
+    Seuil = "Seuil à 7 jours",
+    Groupe = levels(df_delai$Type_PPO)[c(2, 1)],
+    Concordants = c(
+        paste0(tab_7j[2, 2], "/", sum(tab_7j[2, ]), " (", round(100 * tab_7j[2, 2] / sum(tab_7j[2, ]), 1), "%)"),
+        paste0(tab_7j[1, 2], "/", sum(tab_7j[1, ]), " (", round(100 * tab_7j[1, 2] / sum(tab_7j[1, ]), 1), "%)")
+    ),
+    p_value = c(case_when(p_7j < 0.001 ~ "<0.001", .default = sprintf("%.3f", p_7j)), "")
+)
+
+df_desc_table <- bind_rows(desc_2j, desc_5j, desc_7j)
+
+concordance_2j_precoce <- desc_2j$Concordants[1]
+concordance_2j_tardive <- desc_2j$Concordants[2]
+concordance_5j_precoce <- desc_5j$Concordants[1]
+concordance_5j_tardive <- desc_5j$Concordants[2]
+concordance_7j_precoce <- desc_7j$Concordants[1]
+concordance_7j_tardive <- desc_7j$Concordants[2]
+p_2j_texte <- case_when(startsWith(desc_2j$p_value[1], "<") ~ paste0("p ", sub("^<", "< ", desc_2j$p_value[1])), .default = paste0("p = ", desc_2j$p_value[1]))
+p_5j_texte <- case_when(startsWith(desc_5j$p_value[1], "<") ~ paste0("p ", sub("^<", "< ", desc_5j$p_value[1])), .default = paste0("p = ", desc_5j$p_value[1]))
+p_7j_texte <- case_when(startsWith(desc_7j$p_value[1], "<") ~ paste0("p ", sub("^<", "< ", desc_7j$p_value[1])), .default = paste0("p = ", desc_7j$p_value[1]))
+
+df_desc_table %>%
+    gt(groupname_col = "Seuil") %>%
+    cols_label(
+        Groupe = "Groupe de délai",
+        Concordants = "Concordants (N / Total)",
+        p_value = "p-value"
+    ) %>%
+    tab_header(
+        title = md("**Taux de concordance selon différents seuils de délai de la PPO**")
+    ) %>%
+    tab_source_note(
+        source_note = "p-value calculée par le test exact de Fisher."
+    )
+```
+
+::: {.callout-note title="Interprétation - Concordance Brute" collapse="false"}
+- Le seuil à 2 jours va dans le même sens, avec `r concordance_2j_precoce` de concordance contre `r concordance_2j_tardive` au-delà de 2 jours, mais il n'atteint pas le seuil usuel de significativité (`r p_2j_texte`).
+- Les seuils à 5 et 7 jours restent nettement associés à la concordance : `r concordance_5j_precoce` vs `r concordance_5j_tardive` (`r p_5j_texte`), et `r concordance_7j_precoce` vs `r concordance_7j_tardive` (`r p_7j_texte`).
+:::
+
+\newpage
+
+## Analyse univariée des facteurs prédictifs de la concordance
+
+- **Méthode :** Régressions logistiques simples modélisant l'association individuelle de chaque facteur avec la concordance.
+
+- **Patients retenus :** L'analyse porte sur la cohorte complète des patients testés en Pré-EOT (N=`r nrow(df_delai)`) pour l'intégralité des variables, les délais ayant été recalculés. Tout prélèvement stérile est considéré comme "non concordant".
+
+
+```{r}
+#| label: concordance-univ
+#| include: true
+#| echo: false
+#| tbl-cap: "Analyse univariée : Facteurs prédictifs de la concordance entre le pathogène pré-EOT et le pathogène de la PPO"
+#| message: false
+#| warning: false
+
+boot_or_firth <- function(data, indices, formula) {
+    resultat <- try(exp(coef(logistf(formula, data = data[indices, ], pl = FALSE))[2]), silent = TRUE)
+    suppressWarnings(as.numeric(resultat))
+}
+
+df_delai <- df %>%
+    filter(preeot_realise) %>%
+    mutate(
+        Concordance_Binary = as.integer(concordance_pathogene),
+        Type_PPO = factor(
+            case_when(delai_preEOT_PPO < 7 ~ "PPO Précoce (< 7 jours)", .default = "PPO Tardive (\U2265 7 jours)"),
+            levels = c("PPO Tardive (\U2265 7 jours)", "PPO Précoce (< 7 jours)")
+        ),
+        delai_2j = factor(
+            case_when(delai_preEOT_PPO <= 2 ~ "\u2264 2 jours", .default = "> 2 jours"),
+            levels = c("> 2 jours", "\u2264 2 jours")
+        ),
+        delai_5j = factor(
+            case_when(delai_preEOT_PPO <= 5 ~ "\u2264 5 jours", .default = "> 5 jours"),
+            levels = c("> 5 jours", "\u2264 5 jours")
+        ),
+        score_sofa = as.numeric(score_sofa)
+    )
+
+n_analyse <- nrow(df_delai)
+
+set.seed(123)
+boot_2j <- boot(data = df_delai, statistic = boot_or_firth, R = 10000, formula = Concordance_Binary ~ delai_2j)
+ci_2j <- quantile(boot_2j$t[is.finite(boot_2j$t)], c(0.025, 0.975))
+fit_2j <- logistf(Concordance_Binary ~ delai_2j, data = df_delai)
+rows_2j <- data.frame(
+    Characteristic = c("Délai (\u2264 2j vs > 2j)", "    > 2 jours", "    \u2264 2 jours"),
+    N = c(as.character(n_analyse), "", ""),
+    OR = c("", "\u2014", sprintf("%.2f", exp(coef(fit_2j)[2]))),
+    CI = c("", "\u2014", sprintf("%.2f, %.2f", ci_2j[1], ci_2j[2])),
+    p_value = c("", "", case_when(fit_2j$prob[2] < 0.001 ~ "<0.001", .default = sprintf("%.3f", fit_2j$prob[2])))
+)
+
+set.seed(123)
+boot_5j <- boot(data = df_delai, statistic = boot_or_firth, R = 10000, formula = Concordance_Binary ~ delai_5j)
+ci_5j <- quantile(boot_5j$t[is.finite(boot_5j$t)], c(0.025, 0.975))
+fit_5j <- logistf(Concordance_Binary ~ delai_5j, data = df_delai)
+rows_5j <- data.frame(
+    Characteristic = c("Délai (\u2264 5j vs > 5j)", "    > 5 jours", "    \u2264 5 jours"),
+    N = c(as.character(n_analyse), "", ""),
+    OR = c("", "\u2014", sprintf("%.2f", exp(coef(fit_5j)[2]))),
+    CI = c("", "\u2014", sprintf("%.2f, %.2f", ci_5j[1], ci_5j[2])),
+    p_value = c("", "", case_when(fit_5j$prob[2] < 0.001 ~ "<0.001", .default = sprintf("%.3f", fit_5j$prob[2])))
+)
+
+set.seed(123)
+boot_7j <- boot(data = df_delai, statistic = boot_or_firth, R = 10000, formula = Concordance_Binary ~ Type_PPO)
+ci_7j <- quantile(boot_7j$t[is.finite(boot_7j$t)], c(0.025, 0.975))
+fit_7j <- logistf(Concordance_Binary ~ Type_PPO, data = df_delai)
+rows_7j <- data.frame(
+    Characteristic = c("Délai (< 7j vs \u2265 7j)", "    \u2265 7 jours", "    < 7 jours"),
+    N = c(as.character(n_analyse), "", ""),
+    OR = c("", "\u2014", sprintf("%.2f", exp(coef(fit_7j)[2]))),
+    CI = c("", "\u2014", sprintf("%.2f, %.2f", ci_7j[1], ci_7j[2])),
+    p_value = c("", "", case_when(fit_7j$prob[2] < 0.001 ~ "<0.001", .default = sprintf("%.3f", fit_7j$prob[2])))
+)
+
+set.seed(123)
+boot_delai <- boot(data = df_delai, statistic = boot_or_firth, R = 10000, formula = Concordance_Binary ~ delai_preEOT_PPO)
+ci_delai <- quantile(boot_delai$t[is.finite(boot_delai$t)], c(0.025, 0.975))
+fit_delai <- logistf(Concordance_Binary ~ delai_preEOT_PPO, data = df_delai)
+row_delai <- data.frame(
+    Characteristic = "Délai (en jours)",
+    N = as.character(n_analyse),
+    OR = sprintf("%.2f", exp(coef(fit_delai)[2])),
+    CI = sprintf("%.2f, %.2f", ci_delai[1], ci_delai[2]),
+    p_value = case_when(fit_delai$prob[2] < 0.001 ~ "<0.001", .default = sprintf("%.3f", fit_delai$prob[2]))
+)
+
+set.seed(123)
+boot_sofa <- boot(data = df_delai, statistic = boot_or_firth, R = 10000, formula = Concordance_Binary ~ score_sofa)
+ci_sofa <- quantile(boot_sofa$t[is.finite(boot_sofa$t)], c(0.025, 0.975))
+fit_sofa <- logistf(Concordance_Binary ~ score_sofa, data = df_delai)
+row_sofa <- data.frame(
+    Characteristic = "Score SOFA",
+    N = as.character(n_analyse),
+    OR = sprintf("%.2f", exp(coef(fit_sofa)[2])),
+    CI = sprintf("%.2f, %.2f", ci_sofa[1], ci_sofa[2]),
+    p_value = case_when(fit_sofa$prob[2] < 0.001 ~ "<0.001", .default = sprintf("%.3f", fit_sofa$prob[2]))
+)
+
+tbl_rows <- rbind(rows_2j, rows_5j, rows_7j, row_delai, row_sofa)
+
+univ_2j_or <- rows_2j$OR[3]
+univ_2j_p <- case_when(startsWith(rows_2j$p_value[3], "<") ~ paste0("p ", sub("^<", "< ", rows_2j$p_value[3])), .default = paste0("p = ", rows_2j$p_value[3]))
+univ_5j_or <- rows_5j$OR[3]
+univ_5j_ci <- rows_5j$CI[3]
+univ_5j_p <- case_when(startsWith(rows_5j$p_value[3], "<") ~ paste0("p ", sub("^<", "< ", rows_5j$p_value[3])), .default = paste0("p = ", rows_5j$p_value[3]))
+univ_7j_or <- rows_7j$OR[3]
+univ_7j_ci <- rows_7j$CI[3]
+univ_7j_p <- case_when(startsWith(rows_7j$p_value[3], "<") ~ paste0("p ", sub("^<", "< ", rows_7j$p_value[3])), .default = paste0("p = ", rows_7j$p_value[3]))
+univ_delai_or <- row_delai$OR[1]
+univ_delai_ci <- row_delai$CI[1]
+univ_delai_p <- case_when(startsWith(row_delai$p_value[1], "<") ~ paste0("p ", sub("^<", "< ", row_delai$p_value[1])), .default = paste0("p = ", row_delai$p_value[1]))
+univ_sofa_or <- row_sofa$OR[1]
+univ_sofa_p <- case_when(startsWith(row_sofa$p_value[1], "<") ~ paste0("p ", sub("^<", "< ", row_sofa$p_value[1])), .default = paste0("p = ", row_sofa$p_value[1]))
+
+tbl_rows %>%
+    gt() %>%
+    cols_label(
+        Characteristic = "Characteristic",
+        N = "N",
+        OR = "OR",
+        CI = "95% CI",
+        p_value = "p-value"
+    ) %>%
+    tab_header(
+        title = md("**Tableau des facteurs prédictifs de la concordance**")
+    ) %>%
+    tab_source_note(
+        source_note = "Intervalles de confiance à 95% (95% CI) obtenus par bootstrap (10000 réplications). OR et p-values calculés par régression logistique pénalisée de Firth."
+    )
+```
+
+::: {.callout-note title="Interprétation - Analyse Univariée" collapse="false"}
+- Sur les `r nrow(df_delai)` patients analysables, le seuil à 5 jours reste fortement associé à la concordance (OR = `r univ_5j_or`, IC 95% [`r univ_5j_ci`], `r univ_5j_p`). Le seuil à 7 jours va dans le même sens (OR = `r univ_7j_or`, IC 95% [`r univ_7j_ci`], `r univ_7j_p`).
+- Le seuil à 2 jours n'est plus significatif au seuil de 5% (OR = `r univ_2j_or`, `r univ_2j_p`). En continu, chaque jour supplémentaire diminue les odds de concordance (OR = `r univ_delai_or`, IC 95% [`r univ_delai_ci`], `r univ_delai_p`).
+- Le score SOFA n'est plus associé à la concordance dans ce recueil (OR = `r univ_sofa_or`, `r univ_sofa_p`).
+:::
+
+\newpage
+
+## Analyse Multivariée
+
+- **Méthode :** Régression logistique multivariée 
+
+- **Patients retenus :** L'analyse multivariée s'applique à l'ensemble de la cohorte analysable (N=`r nrow(df_delai)`), tous les délais ayant été reconstitués à partir des dates.
+
+```{r}
+#| label: concordance-multi
+#| include: true
+#| tbl-cap: "Analyse multivariée : Facteurs prédictifs de la concordance entre le pathogène pré-EOT et le pathogène de la PPO"
+#| echo: false
+#| message: false
+#| warning: false
+
+df_delai_multi <- df %>%
+    filter(preeot_realise) %>%
+    mutate(
+        Concordance_Binary = as.integer(concordance_pathogene),
+        delai_5j = factor(
+            case_when(delai_preEOT_PPO <= 5 ~ "\u2264 5 jours", .default = "> 5 jours"),
+            levels = c("> 5 jours", "\u2264 5 jours")
+        ),
+        score_sofa = as.numeric(score_sofa)
+    )
+
+model_concordance_firth <- logistf(
+    Concordance_Binary ~ delai_5j + score_sofa + infectio_type_prelevement_preeot,
+    data = df_delai_multi
+)
+
+terme_multi_5j <- "delai_5j\u2264 5 jours"
+terme_multi_sofa <- "score_sofa"
+terme_multi_pdp <- "infectio_type_prelevement_preeotPDP"
+terme_multi_at <- "infectio_type_prelevement_preeotAT"
+
+multi_5j_texte <- paste0(
+    "OR = ", sprintf("%.2f", exp(coef(model_concordance_firth)[terme_multi_5j])),
+    " [", sprintf("%.2f", exp(model_concordance_firth$ci.lower[terme_multi_5j])),
+    " ; ", sprintf("%.2f", exp(model_concordance_firth$ci.upper[terme_multi_5j])), "], ",
+    case_when(
+        model_concordance_firth$prob[terme_multi_5j] < 0.001 ~ "p < 0.001",
+        .default = paste0("p = ", sprintf("%.3f", model_concordance_firth$prob[terme_multi_5j]))
+    )
+)
+multi_sofa_texte <- paste0(
+    "OR = ", sprintf("%.2f", exp(coef(model_concordance_firth)[terme_multi_sofa])),
+    " [", sprintf("%.2f", exp(model_concordance_firth$ci.lower[terme_multi_sofa])),
+    " ; ", sprintf("%.2f", exp(model_concordance_firth$ci.upper[terme_multi_sofa])), "], ",
+    case_when(
+        model_concordance_firth$prob[terme_multi_sofa] < 0.001 ~ "p < 0.001",
+        .default = paste0("p = ", sprintf("%.3f", model_concordance_firth$prob[terme_multi_sofa]))
+    )
+)
+multi_pdp_texte <- paste0(
+    "OR = ", sprintf("%.2f", exp(coef(model_concordance_firth)[terme_multi_pdp])),
+    " [", sprintf("%.2f", exp(model_concordance_firth$ci.lower[terme_multi_pdp])),
+    " ; ", sprintf("%.2f", exp(model_concordance_firth$ci.upper[terme_multi_pdp])), "], ",
+    case_when(
+        model_concordance_firth$prob[terme_multi_pdp] < 0.001 ~ "p < 0.001",
+        .default = paste0("p = ", sprintf("%.3f", model_concordance_firth$prob[terme_multi_pdp]))
+    )
+)
+multi_at_texte <- paste0(
+    "OR = ", sprintf("%.2f", exp(coef(model_concordance_firth)[terme_multi_at])),
+    " [", sprintf("%.2f", exp(model_concordance_firth$ci.lower[terme_multi_at])),
+    " ; ", sprintf("%.2f", exp(model_concordance_firth$ci.upper[terme_multi_at])), "], ",
+    case_when(
+        model_concordance_firth$prob[terme_multi_at] < 0.001 ~ "p < 0.001",
+        .default = paste0("p = ", sprintf("%.3f", model_concordance_firth$prob[terme_multi_at]))
+    )
+)
+
+tbl_regression(model_concordance_firth, exponentiate = TRUE, 
+               label = list(delai_5j ~ "Délai (\u2264 5j vs > 5j)",
+                            score_sofa ~ "Score SOFA",
+                            infectio_type_prelevement_preeot ~ "Technique de prélèvement (Pré-EOT)")) %>%
+    bold_p() %>%
+    bold_labels() %>%
+    as_gt() %>%
+    tab_source_note(source_note = "LBA : Lavage Broncho-Alvéolaire ; PDP : Prélèvement Distal Protégé ; AT : Aspiration Trachéale ; ECBC : Examen Cytobactériologique des Crachats")
+```
+
+::: {.callout-note title="Interprétation - Analyse Multivariée" collapse="false"}
+- **Correction des biais :** l'effectif d'événements concordants est de `r sum(df_delai_multi$Concordance_Binary == 1, na.rm = TRUE)`, donc le modèle de Firth est conservé pour pénaliser et stabiliser les estimations.
+- Après ajustement, le seuil à 5 jours reste fortement associé à la concordance (`r multi_5j_texte`).
+- La technique de prélèvement reste importante : le PDP est associé à une probabilité de concordance plus faible que le LBA (`r multi_pdp_texte`), tandis que l'AT va dans le même sens avec une association limite (`r multi_at_texte`). Le score SOFA n'est pas associé après ajustement (`r multi_sofa_texte`).
+:::
+
+\newpage
+### Nouvel essai de régression avec seuil à 2 jours
+
+```{r}
+#| label: concordance-multi-2j
+#| include: true
+#| tbl-cap: "Analyse multivariée : Facteurs prédictifs de la concordance entre le pathogène pré-EOT et le pathogène de la PPO (Seuil à 2 jours)"
+#| echo: false
+
+df_delai_multi_2j <- df %>%
+    filter(preeot_realise) %>%
+    mutate(
+        Concordance_Binary = as.integer(concordance_pathogene),
+        delai_2j = factor(
+            case_when(delai_preEOT_PPO <= 2 ~ "\u2264 2 jours", .default = "> 2 jours"),
+            levels = c("> 2 jours", "\u2264 2 jours")
+        ),
+        score_sofa = as.numeric(score_sofa)
+    )
+
+model_concordance_firth_2j <- logistf(
+    Concordance_Binary ~ delai_2j + score_sofa + infectio_type_prelevement_preeot,
+    data = df_delai_multi_2j
+)
+
+terme_multi_2j <- "delai_2j\u2264 2 jours"
+terme_multi_2j_pdp <- "infectio_type_prelevement_preeotPDP"
+
+multi_2j_texte <- paste0(
+    "OR = ", sprintf("%.2f", exp(coef(model_concordance_firth_2j)[terme_multi_2j])),
+    " [", sprintf("%.2f", exp(model_concordance_firth_2j$ci.lower[terme_multi_2j])),
+    " ; ", sprintf("%.2f", exp(model_concordance_firth_2j$ci.upper[terme_multi_2j])), "], ",
+    case_when(
+        model_concordance_firth_2j$prob[terme_multi_2j] < 0.001 ~ "p < 0.001",
+        .default = paste0("p = ", sprintf("%.3f", model_concordance_firth_2j$prob[terme_multi_2j]))
+    )
+)
+multi_2j_pdp_texte <- paste0(
+    "OR = ", sprintf("%.2f", exp(coef(model_concordance_firth_2j)[terme_multi_2j_pdp])),
+    " [", sprintf("%.2f", exp(model_concordance_firth_2j$ci.lower[terme_multi_2j_pdp])),
+    " ; ", sprintf("%.2f", exp(model_concordance_firth_2j$ci.upper[terme_multi_2j_pdp])), "], ",
+    case_when(
+        model_concordance_firth_2j$prob[terme_multi_2j_pdp] < 0.001 ~ "p < 0.001",
+        .default = paste0("p = ", sprintf("%.3f", model_concordance_firth_2j$prob[terme_multi_2j_pdp]))
+    )
+)
+
+tbl_regression(model_concordance_firth_2j, exponentiate = TRUE,
+               label = list(delai_2j ~ "Délai (\u2264 2j vs > 2j)",
+                            score_sofa ~ "Score SOFA",
+                            infectio_type_prelevement_preeot ~ "Technique de prélèvement (Pré-EOT)")) %>%
+    bold_p() %>%
+    bold_labels() %>%
+    as_gt() %>%
+    tab_source_note(source_note = "LBA : Lavage Broncho-Alvéolaire ; PDP : Prélèvement Distal Protégé ; AT : Aspiration Trachéale ; ECBC : Examen Cytobactériologique des Crachats")
+```
+
+::: {.callout-note title="Interprétation - Modèle avec seuil à 2 jours" collapse="false"}
+- Dans le modèle ajusté utilisant le seuil à 2 jours, le délai très précoce n'est pas indépendamment associé à la concordance (`r multi_2j_texte`).
+- Le signal principal restant concerne la technique de prélèvement, notamment le PDP par rapport au LBA (`r multi_2j_pdp_texte`).
+:::
+
+\newpage
+# Analyse des Échecs Thérapeutiques et Antibiothérapie
+
+Cette section vise à évaluer l'impact clinique de la colonisation Pré-EOT sur le choix de l'antibiothérapie probabiliste, et d'évaluer si une potentielle désescalade chez les patients colonisés (Groupe A) a entraîné une perte de chance (échec thérapeutique).
+
+## 1. Stratégies d'Antibiothérapie (Mono/Bi/Tri)
+
+```{r}
+#| label: echec-atb-strat
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 8
+#| fig-height: 5
+
+df_atb <- df %>%
+  filter(!is.na(groupe_colonisation), !is.na(nb_atb_probabiliste)) %>%
+  count(groupe_colonisation, nb_atb_probabiliste) %>%
+  group_by(groupe_colonisation) %>%
+  mutate(pct = n / sum(n))
+
+atb_table <- table(df$groupe_colonisation, df$nb_atb_probabiliste)
+atb_p_value <- fisher.test(atb_table)$p.value
+
+atb_mono_a_n <- df_atb %>%
+    filter(groupe_colonisation == "Groupe A (Colonisé Pré-EOT)", nb_atb_probabiliste == "Monothérapie") %>%
+    pull(n)
+atb_mono_a_pct <- df_atb %>%
+    filter(groupe_colonisation == "Groupe A (Colonisé Pré-EOT)", nb_atb_probabiliste == "Monothérapie") %>%
+    pull(pct)
+atb_total_a <- df_atb %>%
+    filter(groupe_colonisation == "Groupe A (Colonisé Pré-EOT)") %>%
+    summarise(total = sum(n)) %>%
+    pull(total)
+
+atb_mono_b_n <- df_atb %>%
+    filter(groupe_colonisation == "Groupe B (Stérile ou Non fait)", nb_atb_probabiliste == "Monothérapie") %>%
+    pull(n)
+atb_mono_b_pct <- df_atb %>%
+    filter(groupe_colonisation == "Groupe B (Stérile ou Non fait)", nb_atb_probabiliste == "Monothérapie") %>%
+    pull(pct)
+atb_total_b <- df_atb %>%
+    filter(groupe_colonisation == "Groupe B (Stérile ou Non fait)") %>%
+    summarise(total = sum(n)) %>%
+    pull(total)
+
+atb_mono_a_pct_texte <- paste0(round(100 * atb_mono_a_pct, 1), "%")
+atb_mono_b_pct_texte <- paste0(round(100 * atb_mono_b_pct, 1), "%")
+atb_p_texte <- case_when(
+    atb_p_value < 0.001 ~ "p < 0.001",
+    .default = paste0("p = ", sprintf("%.3f", atb_p_value))
+)
+
+ggplot(df_atb, aes(x = groupe_colonisation, y = pct, fill = nb_atb_probabiliste)) +
+  geom_bar(stat = "identity", position = "fill", width=0.6) +
+  geom_text(aes(label = scales::percent(pct, accuracy = 1)), position = position_stack(vjust = 0.5), color="white", fontface="bold", size=5) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_manual(values = c("Monothérapie" = "#2ecc71", "Bithérapie" = "#e67e22", "Trithérapie" = "#e74c3c")) +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Stratégies d'Antibiothérapie Probabiliste",
+    subtitle = "Répartition actualisée des stratégies selon le statut de colonisation Pré-EOT",
+    x = "",
+    y = "Proportion des patients",
+    fill = "Antibiothérapie"
+  ) +
+  theme(legend.position = "bottom", panel.grid.major.x = element_blank())
+```
+
+::: {.callout-note title="Interprétation - Antibiothérapie Probabiliste"}
+- La monothérapie reste la stratégie majoritaire dans les deux groupes : `r atb_mono_a_n`/`r atb_total_a` patients colonisés (`r atb_mono_a_pct_texte`) et `r atb_mono_b_n`/`r atb_total_b` patients stériles ou non colonisés (`r atb_mono_b_pct_texte`).
+- La tendance à moins de bi-/trithérapies chez les patients colonisés n'est pas statistiquement significative dans ce recueil (test exact de Fisher, `r atb_p_texte`). On ne peut donc pas affirmer une désescalade démontrée statistiquement, même si le sens descriptif reste celui d'une monothérapie plus fréquente dans le groupe colonisé.
+:::
+
+## 2. Adéquation et Taux d'Échec Initial
+
+```{r}
+#| label: echec-atb-adequation
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 8
+#| fig-height: 5
+
+df_adeq <- df %>%
+  filter(!is.na(groupe_colonisation)) %>%
+  select(groupe_colonisation, adequation_antibiotherapie_probabiliste, echec_traitement_initial) %>%
+  pivot_longer(cols = c(adequation_antibiotherapie_probabiliste, echec_traitement_initial), names_to="Indicateur", values_to="Statut") %>%
+  filter(!is.na(Statut)) %>%
+  mutate(
+    Indicateur = recode(
+        Indicateur,
+        adequation_antibiotherapie_probabiliste = "Adéquation ATB",
+        echec_traitement_initial = "Échec Thérapeutique"
+    ),
+    Succes_Echec = case_when(
+        Indicateur == "Adéquation ATB" & Statut == "Adéquate" ~ 1,
+        Indicateur == "Adéquation ATB" & Statut == "Inadéquate" ~ 0,
+        Indicateur == "Échec Thérapeutique" & Statut == "Échec" ~ 1,
+        Indicateur == "Échec Thérapeutique" & Statut == "Succès" ~ 0,
+        .default = NA_real_
+    )
+  ) %>%
+  group_by(groupe_colonisation, Indicateur) %>%
+  summarise(Evenements = sum(Succes_Echec), N = n(), Taux = Evenements / N, .groups = "drop")
+
+adeq_table <- table(df$groupe_colonisation, df$adequation_antibiotherapie_probabiliste)
+echec_table <- table(df$groupe_colonisation, df$echec_traitement_initial)
+adeq_p_value <- fisher.test(adeq_table)$p.value
+echec_p_value <- fisher.test(echec_table)$p.value
+
+adeq_a_n <- df_adeq %>% filter(groupe_colonisation == "Groupe A (Colonisé Pré-EOT)", Indicateur == "Adéquation ATB") %>% pull(N)
+adeq_a_evenements <- df_adeq %>% filter(groupe_colonisation == "Groupe A (Colonisé Pré-EOT)", Indicateur == "Adéquation ATB") %>% pull(Evenements)
+adeq_a_pct_texte <- paste0(round(100 * (df_adeq %>% filter(groupe_colonisation == "Groupe A (Colonisé Pré-EOT)", Indicateur == "Adéquation ATB") %>% pull(Taux)), 1), "%")
+adeq_b_n <- df_adeq %>% filter(groupe_colonisation == "Groupe B (Stérile ou Non fait)", Indicateur == "Adéquation ATB") %>% pull(N)
+adeq_b_evenements <- df_adeq %>% filter(groupe_colonisation == "Groupe B (Stérile ou Non fait)", Indicateur == "Adéquation ATB") %>% pull(Evenements)
+adeq_b_pct_texte <- paste0(round(100 * (df_adeq %>% filter(groupe_colonisation == "Groupe B (Stérile ou Non fait)", Indicateur == "Adéquation ATB") %>% pull(Taux)), 1), "%")
+
+echec_a_n <- df_adeq %>% filter(groupe_colonisation == "Groupe A (Colonisé Pré-EOT)", Indicateur == "Échec Thérapeutique") %>% pull(N)
+echec_a_evenements <- df_adeq %>% filter(groupe_colonisation == "Groupe A (Colonisé Pré-EOT)", Indicateur == "Échec Thérapeutique") %>% pull(Evenements)
+echec_a_pct_texte <- paste0(round(100 * (df_adeq %>% filter(groupe_colonisation == "Groupe A (Colonisé Pré-EOT)", Indicateur == "Échec Thérapeutique") %>% pull(Taux)), 1), "%")
+echec_b_n <- df_adeq %>% filter(groupe_colonisation == "Groupe B (Stérile ou Non fait)", Indicateur == "Échec Thérapeutique") %>% pull(N)
+echec_b_evenements <- df_adeq %>% filter(groupe_colonisation == "Groupe B (Stérile ou Non fait)", Indicateur == "Échec Thérapeutique") %>% pull(Evenements)
+echec_b_pct_texte <- paste0(round(100 * (df_adeq %>% filter(groupe_colonisation == "Groupe B (Stérile ou Non fait)", Indicateur == "Échec Thérapeutique") %>% pull(Taux)), 1), "%")
+
+adeq_p_texte <- case_when(adeq_p_value < 0.001 ~ "p < 0.001", .default = paste0("p = ", sprintf("%.3f", adeq_p_value)))
+echec_p_texte <- case_when(echec_p_value < 0.001 ~ "p < 0.001", .default = paste0("p = ", sprintf("%.3f", echec_p_value)))
+
+ggplot(df_adeq, aes(x = Indicateur, y = Taux, fill = groupe_colonisation)) +
+  geom_bar(stat = "identity", position = position_dodge(width=0.7), width=0.6) +
+  geom_text(aes(label = scales::percent(Taux, accuracy=1)), position=position_dodge(width=0.7), vjust=-0.5, fontface="bold", size=5) +
+  scale_y_continuous(labels = scales::percent, limits=c(0, 1.1)) +
+  scale_fill_manual(values = c("Groupe A (Colonisé Pré-EOT)" = "#3498db", "Groupe B (Stérile ou Non fait)" = "#95a5a6")) +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Taux d'Adéquation et d'Échec Initial",
+    subtitle = "Taux recalculés selon le statut de colonisation Pré-EOT",
+    x = "",
+    y = "Taux (%)",
+    fill = "Groupe"
+  ) +
+  theme(legend.position = "bottom", panel.grid.major.x = element_blank())
+```
+
+::: {.callout-note title="Interprétation - Taux d'échec"}
+- Les taux d'adéquation sont proches entre groupes : `r adeq_a_evenements`/`r adeq_a_n` chez les patients colonisés (`r adeq_a_pct_texte`) contre `r adeq_b_evenements`/`r adeq_b_n` chez les patients stériles ou non colonisés (`r adeq_b_pct_texte`, `r adeq_p_texte`).
+- Les taux d'échec initial sont également proches : `r echec_a_evenements`/`r echec_a_n` (`r echec_a_pct_texte`) contre `r echec_b_evenements`/`r echec_b_n` (`r echec_b_pct_texte`, `r echec_p_texte`). Cette comparaison ne met donc pas en évidence de sur-risque d'échec dans le groupe colonisé.
+- Les lignes dont l'issue d'échec est codée "Autre" sont exclues des analyses binaires.
+:::
+
+## 3. Facteurs de Risque d'Échec Thérapeutique
+
+```{r}
+#| label: echec-univ-table
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+
+df_echec <- df %>%
+    transmute(
+        echec = echec_traitement_initial_num,
+        age = initial_age,
+        sexe = factor(sexe, levels = c(0, 1), labels = c("Masculin", "Féminin")),
+        bmi = initial_bmi,
+        lus_preeot = postop_lus_preeot,
+        lus_ppo = postop_lus_ppo,
+        score_sofa = initial_score_sofa,
+        resistance_binaire = factor(
+            case_when(
+                is.na(resistance_phenotypique_germe_num) ~ NA_character_,
+                resistance_phenotypique_germe_num == 0 ~ "Sensible",
+                .default = "Résistant (BMR)"
+            ),
+            levels = c("Sensible", "Résistant (BMR)")
+        )
+    ) %>%
+    filter(!is.na(echec))
+
+df_echec_age <- df_echec %>% select(echec, age) %>% filter(!is.na(age))
+df_echec_sexe <- df_echec %>% select(echec, sexe) %>% filter(!is.na(sexe))
+df_echec_bmi <- df_echec %>% select(echec, bmi) %>% filter(!is.na(bmi))
+df_echec_lus_preeot <- df_echec %>% select(echec, lus_preeot) %>% filter(!is.na(lus_preeot))
+df_echec_lus_ppo <- df_echec %>% select(echec, lus_ppo) %>% filter(!is.na(lus_ppo))
+df_echec_sofa <- df_echec %>% select(echec, score_sofa) %>% filter(!is.na(score_sofa))
+df_echec_resistance <- df_echec %>% select(echec, resistance_binaire) %>% filter(!is.na(resistance_binaire))
+
+fit_echec_age <- logistf(echec ~ age, data = df_echec_age)
+fit_echec_sexe <- logistf(echec ~ sexe, data = df_echec_sexe)
+fit_echec_bmi <- logistf(echec ~ bmi, data = df_echec_bmi)
+fit_echec_lus_preeot <- logistf(echec ~ lus_preeot, data = df_echec_lus_preeot)
+fit_echec_lus_ppo <- logistf(echec ~ lus_ppo, data = df_echec_lus_ppo)
+fit_echec_sofa <- logistf(echec ~ score_sofa, data = df_echec_sofa)
+fit_echec_resistance <- logistf(echec ~ resistance_binaire, data = df_echec_resistance)
+
+echec_univ <- tibble::tibble(
+    Variable = c("Âge", "Sexe", "IMC", "Score LUS pré-EOT", "Score LUS PPO", "Score SOFA", "Résistance phénotypique"),
+    Modalite = c("par unité", "Féminin", "par unité", "par unité", "par unité", "par unité", "Résistant (BMR)"),
+    N = c(fit_echec_age$n, fit_echec_sexe$n, fit_echec_bmi$n, fit_echec_lus_preeot$n, fit_echec_lus_ppo$n, fit_echec_sofa$n, fit_echec_resistance$n),
+    Evenements = c(
+        sum(df_echec_age$echec == 1),
+        sum(df_echec_sexe$echec == 1),
+        sum(df_echec_bmi$echec == 1),
+        sum(df_echec_lus_preeot$echec == 1),
+        sum(df_echec_lus_ppo$echec == 1),
+        sum(df_echec_sofa$echec == 1),
+        sum(df_echec_resistance$echec == 1)
+    ),
+    OR = exp(c(coef(fit_echec_age)[2], coef(fit_echec_sexe)[2], coef(fit_echec_bmi)[2], coef(fit_echec_lus_preeot)[2], coef(fit_echec_lus_ppo)[2], coef(fit_echec_sofa)[2], coef(fit_echec_resistance)[2])),
+    CI_low = exp(c(fit_echec_age$ci.lower[2], fit_echec_sexe$ci.lower[2], fit_echec_bmi$ci.lower[2], fit_echec_lus_preeot$ci.lower[2], fit_echec_lus_ppo$ci.lower[2], fit_echec_sofa$ci.lower[2], fit_echec_resistance$ci.lower[2])),
+    CI_high = exp(c(fit_echec_age$ci.upper[2], fit_echec_sexe$ci.upper[2], fit_echec_bmi$ci.upper[2], fit_echec_lus_preeot$ci.upper[2], fit_echec_lus_ppo$ci.upper[2], fit_echec_sofa$ci.upper[2], fit_echec_resistance$ci.upper[2])),
+    p_value = c(fit_echec_age$prob[2], fit_echec_sexe$prob[2], fit_echec_bmi$prob[2], fit_echec_lus_preeot$prob[2], fit_echec_lus_ppo$prob[2], fit_echec_sofa$prob[2], fit_echec_resistance$prob[2])
+) %>%
+    mutate(
+        Terme = case_when(Modalite == "par unité" ~ paste0(Variable, " (par unité)"), .default = paste0(Variable, " : ", Modalite)),
+        OR_IC = paste0(sprintf("%.2f", OR), " [", sprintf("%.2f", CI_low), " ; ", sprintf("%.2f", CI_high), "]"),
+        p_value_fmt = case_when(p_value < 0.001 ~ "<0.001", .default = sprintf("%.3f", p_value))
+    )
+
+echec_resistance_ligne <- echec_univ %>% filter(Variable == "Résistance phénotypique")
+echec_resistance_texte <- paste0(
+    "OR = ", echec_resistance_ligne$OR_IC, ", ",
+    case_when(
+        startsWith(echec_resistance_ligne$p_value_fmt, "<") ~ paste0("p ", sub("^<", "< ", echec_resistance_ligne$p_value_fmt)),
+        .default = paste0("p = ", echec_resistance_ligne$p_value_fmt)
+    )
+)
+echec_lus_preeot_ligne <- echec_univ %>% filter(Variable == "Score LUS pré-EOT")
+echec_lus_preeot_texte <- paste0(
+    "OR = ", echec_lus_preeot_ligne$OR_IC, ", ",
+    case_when(
+        startsWith(echec_lus_preeot_ligne$p_value_fmt, "<") ~ paste0("p ", sub("^<", "< ", echec_lus_preeot_ligne$p_value_fmt)),
+        .default = paste0("p = ", echec_lus_preeot_ligne$p_value_fmt)
+    )
+)
+
+echec_univ %>%
+    select(Variable, Modalite, N, Evenements, `OR [IC 95%]` = OR_IC, `p-value` = p_value_fmt) %>%
+    gt() %>%
+    tab_header(
+        title = md("**Analyse univariée : facteurs prédictifs d'échec thérapeutique**"),
+        subtitle = md("Régressions logistiques pénalisées de Firth ; les scores numériques sont analysés comme variables continues.")
+    ) %>%
+    tab_source_note(
+        source_note = "Les lignes 'Autre' de la variable d'échec thérapeutique sont exclues de l'analyse binaire."
+    )
+```
+
+```{r}
+#| label: echec-forest-plot
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+#| fig-width: 9
+#| fig-height: 6
+
+df_echec <- df %>%
+    transmute(
+        echec = echec_traitement_initial_num,
+        age = initial_age,
+        sexe = factor(sexe, levels = c(0, 1), labels = c("Masculin", "Féminin")),
+        bmi = initial_bmi,
+        lus_preeot = postop_lus_preeot,
+        lus_ppo = postop_lus_ppo,
+        score_sofa = initial_score_sofa,
+        resistance_binaire = factor(
+            case_when(
+                is.na(resistance_phenotypique_germe_num) ~ NA_character_,
+                resistance_phenotypique_germe_num == 0 ~ "Sensible",
+                .default = "Résistant (BMR)"
+            ),
+            levels = c("Sensible", "Résistant (BMR)")
+        )
+    ) %>%
+    filter(!is.na(echec))
+
+df_echec_age <- df_echec %>% select(echec, age) %>% filter(!is.na(age))
+df_echec_sexe <- df_echec %>% select(echec, sexe) %>% filter(!is.na(sexe))
+df_echec_bmi <- df_echec %>% select(echec, bmi) %>% filter(!is.na(bmi))
+df_echec_lus_preeot <- df_echec %>% select(echec, lus_preeot) %>% filter(!is.na(lus_preeot))
+df_echec_lus_ppo <- df_echec %>% select(echec, lus_ppo) %>% filter(!is.na(lus_ppo))
+df_echec_sofa <- df_echec %>% select(echec, score_sofa) %>% filter(!is.na(score_sofa))
+df_echec_resistance <- df_echec %>% select(echec, resistance_binaire) %>% filter(!is.na(resistance_binaire))
+
+fit_echec_age <- logistf(echec ~ age, data = df_echec_age)
+fit_echec_sexe <- logistf(echec ~ sexe, data = df_echec_sexe)
+fit_echec_bmi <- logistf(echec ~ bmi, data = df_echec_bmi)
+fit_echec_lus_preeot <- logistf(echec ~ lus_preeot, data = df_echec_lus_preeot)
+fit_echec_lus_ppo <- logistf(echec ~ lus_ppo, data = df_echec_lus_ppo)
+fit_echec_sofa <- logistf(echec ~ score_sofa, data = df_echec_sofa)
+fit_echec_resistance <- logistf(echec ~ resistance_binaire, data = df_echec_resistance)
+
+echec_univ <- tibble::tibble(
+    Variable = c("Âge", "Sexe", "IMC", "Score LUS pré-EOT", "Score LUS PPO", "Score SOFA", "Résistance phénotypique"),
+    Modalite = c("par unité", "Féminin", "par unité", "par unité", "par unité", "par unité", "Résistant (BMR)"),
+    N = c(fit_echec_age$n, fit_echec_sexe$n, fit_echec_bmi$n, fit_echec_lus_preeot$n, fit_echec_lus_ppo$n, fit_echec_sofa$n, fit_echec_resistance$n),
+    Evenements = c(
+        sum(df_echec_age$echec == 1),
+        sum(df_echec_sexe$echec == 1),
+        sum(df_echec_bmi$echec == 1),
+        sum(df_echec_lus_preeot$echec == 1),
+        sum(df_echec_lus_ppo$echec == 1),
+        sum(df_echec_sofa$echec == 1),
+        sum(df_echec_resistance$echec == 1)
+    ),
+    OR = exp(c(coef(fit_echec_age)[2], coef(fit_echec_sexe)[2], coef(fit_echec_bmi)[2], coef(fit_echec_lus_preeot)[2], coef(fit_echec_lus_ppo)[2], coef(fit_echec_sofa)[2], coef(fit_echec_resistance)[2])),
+    CI_low = exp(c(fit_echec_age$ci.lower[2], fit_echec_sexe$ci.lower[2], fit_echec_bmi$ci.lower[2], fit_echec_lus_preeot$ci.lower[2], fit_echec_lus_ppo$ci.lower[2], fit_echec_sofa$ci.lower[2], fit_echec_resistance$ci.lower[2])),
+    CI_high = exp(c(fit_echec_age$ci.upper[2], fit_echec_sexe$ci.upper[2], fit_echec_bmi$ci.upper[2], fit_echec_lus_preeot$ci.upper[2], fit_echec_lus_ppo$ci.upper[2], fit_echec_sofa$ci.upper[2], fit_echec_resistance$ci.upper[2])),
+    p_value = c(fit_echec_age$prob[2], fit_echec_sexe$prob[2], fit_echec_bmi$prob[2], fit_echec_lus_preeot$prob[2], fit_echec_lus_ppo$prob[2], fit_echec_sofa$prob[2], fit_echec_resistance$prob[2])
+) %>%
+    mutate(
+        Terme = case_when(Modalite == "par unité" ~ paste0(Variable, " (par unité)"), .default = paste0(Variable, " : ", Modalite))
+    )
+
+forest_limits <- c(0.05, 20)
+plot_echec <- echec_univ %>%
+    filter(is.finite(OR), is.finite(CI_low), is.finite(CI_high)) %>%
+    mutate(
+        Terme = factor(Terme, levels = rev(Terme)),
+        CI_low_plot = pmax(CI_low, forest_limits[1]),
+        CI_high_plot = pmin(CI_high, forest_limits[2]),
+        Etiquette_IC = case_when(CI_low < forest_limits[1] | CI_high > forest_limits[2] ~ "IC tronqué", .default = "")
+    )
+
+ggplot(plot_echec, aes(y = Terme, x = OR)) +
+    geom_vline(xintercept = 1, linetype = "dashed", color = "grey50") +
+    geom_segment(aes(x = CI_low_plot, xend = CI_high_plot, yend = Terme), linewidth = 0.7) +
+    geom_point(size = 2.6, color = "#2c3e50") +
+    geom_text(
+        aes(x = forest_limits[2], label = Etiquette_IC),
+        hjust = 1,
+        size = 3,
+        color = "#7f1d1d"
+    ) +
+    scale_x_log10(
+        limits = forest_limits,
+        breaks = c(0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20)
+    ) +
+    theme_minimal(base_size = 12) +
+    labs(
+        title = "Facteurs de risque d'échec thérapeutique (univarié)",
+        subtitle = "OR par unité pour les variables numériques ; IC affichés sur une échelle log bornée",
+        x = "Odds ratio (échelle log)",
+        y = NULL
+    ) +
+    theme(
+        plot.title = element_text(face = "bold"),
+        panel.grid.minor = element_blank()
+    )
+```
+
+::: {.callout-note title="Interprétation - Facteurs de risque"}
+- La résistance phénotypique reste le facteur de risque principal d'échec thérapeutique (`r echec_resistance_texte`).
+- Le score LUS pré-EOT reste également associé à l'échec, avec un effet estimé par point supplémentaire (`r echec_lus_preeot_texte`).
+- L'âge, le sexe, l'IMC, le score LUS au moment de la PPO et le score SOFA ne montrent pas d'association significative dans ces modèles univariés. Les variables numériques sont analysées comme variables continues ; le forest plot tronque seulement les intervalles de confiance très larges pour préserver la lisibilité graphique.
+:::
+
+## 4. Liste Clinique des Échecs (Groupe A)
+
+Il est intéressant d'analyser au cas par cas si la connaissance détaillée du prélèvement pré-EOT aurait pu éviter l'échec thérapeutique chez les patients du Groupe A.
+
+```{r}
+#| label: echec-liste-patients
+#| include: true
+#| echo: false
+#| message: false
+#| warning: false
+
+df %>%
+    filter(groupe_colonisation == "Groupe A (Colonisé Pré-EOT)", echec_traitement_initial == "Échec") %>%
+    select(Numero, infectio_pathogene_preeot, infectio_pathogene_ppo, infectio_resistance_phenotypique, ATB_prealable_post_op_libelle, infectio_atb_initiale_1) %>%
+    gt() %>%
+    cols_label(
+        Numero = "N°",
+        infectio_pathogene_preeot = "Germe Pré-EOT",
+        infectio_pathogene_ppo = "Germe PPO",
+        infectio_resistance_phenotypique = "Résistance",
+        ATB_prealable_post_op_libelle = "ATB Préalable",
+        infectio_atb_initiale_1 = "ATB Probabiliste Prescrite"
+    ) %>%
+    tab_header(
+        title = md("**Liste des Échecs Thérapeutiques dans le Groupe A**"),
+        subtitle = "Analyse clinique au cas par cas (potentiellement évitables ?)"
+    ) %>%
+    fmt_missing(columns = everything(), missing_text = "—") %>%
+    tab_options(
+        table.font.size = "small",
+        data_row.padding = px(4)
+    )
+```
+
+\newpage
+# Conclusion
+
+**Cohorte analysée = 122 patients avec PPO.**
+
+-   Tous les patients avaient un prélèvement pré-extubation réalisé. 
+
+-   Parmi eux, 81 patients présentaient une colonisation pré-EOT et 41 avaient un prélèvement stérile ou sans germe identifié.
+
+**Colonisation pré-EOT permet d’anticiper partiellement l’écologie de la PPO.**
+
+Chez les patients colonisés, 54/81 présentaient au moins un germe concordant avec la PPO, soit 66,7%. 
+
+À l’inverse, 27/81 avaient une discordance microbiologique, ce qui montre que le prélèvement pré-EOT ne permet pas de prédire parfaitement le germe responsable de la PPO.
+
+**Au niveau clinique patient, performance diagnostique est modérée.**
+La sensibilité est de 68,4% et la valeur prédictive positive de 66,7%, ce qui suggère qu’un prélèvement pré-EOT positif a une valeur informative réelle. 
+
+En revanche, la spécificité est faible, à 37,2%, et la VPN est de 39,0%, ce qui signifie qu’un prélèvement pré-EOT stérile ne permet pas d’exclure une PPO documentée secondairement.
+
+**Délai entre le prélèvement pré-EOT et la PPO = déterminant majeur de la concordance.**
+La courbe ROC, réalisée uniquement chez les 81 patients colonisés en pré-EOT, retrouve une AUC de 0,794. Le seuil optimal de Youden est inférieur à 3,5 jours, avec une sensibilité de 75,9% et une spécificité de 70,4%.
+
+La concordance microbiologique dépend surtout de la proximité temporelle entre le prélèvement pré-EOT et la PPO.
+Plus la PPO survient rapidement après le prélèvement pré-EOT, plus il est probable que le germe retrouvé dans la PPO corresponde à un germe déjà présent avant l’extubation. Ce signal est particulièrement net lorsque la PPO survient dans les 5 premiers jours : après ajustement, les patients ayant une PPO dans ce délai ont des odds de concordance environ 12 fois plus élevées que ceux dont la PPO survient plus tard.
+Le seuil à 7 jours va dans le même sens, mais le seuil à 5 jours semble plus discriminant et plus robuste dans l’analyse ajustée. À l’inverse, le seuil à 2 jours est probablement trop restrictif : il identifie des PPO très précoces, mais avec un effectif plus limité, ce qui ne permet pas de démontrer une association indépendante après ajustement.
+
+En pratique, ça veut dire que le prélèvement pré-EOT est surtout informatif pour les PPO précoces, notamment dans les 5 jours suivant le prélèvement. Au-delà, la concordance diminue probablement parce que l’écologie respiratoire peut évoluer, avec apparition de nouveaux germes ou modification de la flore colonisante.
+
+**Technique de prélèvement influence également la concordance.**
+Après ajustement, le PDP est associé à une probabilité plus faible de concordance par rapport au LBA. Le score SOFA n’est pas associé à la concordance dans ce recueil.
+
+**Connaissance du statut de colonisation pré-EOT ne semble pas entraîner de perte de chance thérapeutique.**
+Les taux d’adéquation de l’antibiothérapie probabiliste sont proches entre les groupes : 78,7% chez les patients colonisés contre 76,0% chez les patients stériles ou non colonisés. Les taux d’échec initial sont également comparables : 21,3% contre 24,0%.
+
+**Stratégie antibiotique probabiliste = majoritairement une monothérapie dans les deux groupes.**
+La monothérapie concerne 76,5% des patients colonisés et 68,3% des patients stériles ou non colonisés. La différence de stratégie mono/bi/trithérapie n’est pas statistiquement significative.
+
+**Principaux facteurs associés à l’échec thérapeutique =  résistance phénotypique et score LUS pré-EOT.**
+La résistance phénotypique est fortement associée à l’échec thérapeutique, avec un OR de 9,62. Le score LUS pré-EOT est également associé à l’échec, avec un OR de 1,14 par point supplémentaire.
+
+
+**En synthèse, le prélèvement pré-EOT est surtout utile pour les PPO précoces.**
+
+Il apporte une information microbiologique pertinente lorsque la PPO survient rapidement après l’extubation, en particulier dans les 3 à 5 jours. En revanche, sa valeur diminue lorsque le délai augmente, et il ne doit pas être considéré comme un substitut systématique au prélèvement microbiologique au moment de la PPO.
+
+```{=latex}
+\section*{Références}
+```
