@@ -1236,6 +1236,20 @@ continuous <- function(x) {
   sprintf("%.1f [%.1f–%.1f] (n=%d)", q[2],q[1],q[3],length(x))
 }
 binary <- function(x, code=1) fmt(sum(x == code, na.rm=TRUE),sum(!is.na(x)))
+# Conversion Excel surgical duration into decimal hours
+data$duree_chirurgie_heure <- as.numeric(
+  difftime(
+    data$duree_chirurgie_heure,
+    as.POSIXct("1899-12-31 00:00:00", tz = "UTC"),
+    units = "hours"
+  )
+)
+
+# Quality control
+stopifnot(
+  all(data$duree_chirurgie_heure >= 0, na.rm = TRUE),
+  all(data$duree_chirurgie_heure < 24, na.rm = TRUE)
+)
 cont_vars <- c("Age, years"="age", "BMI, kg/m²"="bmi", "SOFA score"="score_sofa", "SAPS II"="score_igs2", "Surgery duration, hours"="duree_chirurgie_heure", "Pre-extubation LUS"="lus_preeot")
 bin_vars <- c("Male sex"="sexe", "Hypertension"="hta", "Diabetes"="diabete", "COPD"="bpco", "Immunosuppression"="immunodepression", "Antibiotics within 90 days"="antibiotherapie_moins_90j", "Liver transplantation"="intervention", "Vascular surgery"="type_chirurgie")
 table1_publication <- tibble(Characteristic=c(names(cont_vars),names(bin_vars)), Value=c(vapply(cont_vars,function(v) continuous(data[[v]]),character(1)),vapply(bin_vars,function(v) binary(data[[v]]),character(1))))
