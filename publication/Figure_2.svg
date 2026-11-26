@@ -1,0 +1,67 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='510.24pt' height='354.33pt' viewBox='0 0 510.24 354.33'>
+<g class='svglite'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    .svglite text {
+      white-space: pre;
+    }
+    .svglite g.glyphgroup path {
+      fill: inherit;
+      stroke: none;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: #FFFFFF;'/>
+<defs>
+  <clipPath id='cpMC4wMHw1MTAuMjR8MC4wMHwzNTQuMzM='>
+    <rect x='0.00' y='0.00' width='510.24' height='354.33' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHw1MTAuMjR8MC4wMHwzNTQuMzM=)'>
+<rect x='0.00' y='0.00' width='510.24' height='354.33' style='stroke-width: 1.16; stroke: none; fill: #FFFFFF;' />
+</g>
+<defs>
+  <clipPath id='cpNDguNjJ8NDkyLjMwfDExLjk2fDMyNy43Mw=='>
+    <rect x='48.62' y='11.96' width='443.69' height='315.77' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpNDguNjJ8NDkyLjMwfDExLjk2fDMyNy43Mw==)'>
+<rect x='48.62' y='11.96' width='443.69' height='315.77' style='stroke-width: 1.16; stroke: none; fill: #FFFFFF;' />
+<polyline points='48.62,327.73 492.30,327.73 ' style='stroke-width: 0.75; stroke: #E3EAF0; stroke-linecap: butt;' />
+<polyline points='48.62,249.15 492.30,249.15 ' style='stroke-width: 0.75; stroke: #E3EAF0; stroke-linecap: butt;' />
+<polyline points='48.62,170.57 492.30,170.57 ' style='stroke-width: 0.75; stroke: #E3EAF0; stroke-linecap: butt;' />
+<polyline points='48.62,92.00 492.30,92.00 ' style='stroke-width: 0.75; stroke: #E3EAF0; stroke-linecap: butt;' />
+<polyline points='48.62,13.42 492.30,13.42 ' style='stroke-width: 0.75; stroke: #E3EAF0; stroke-linecap: butt;' />
+<rect x='121.22' y='293.06' width='96.80' height='34.67' style='stroke-width: 1.16; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #397FA9;' />
+<rect x='322.90' y='131.29' width='96.80' height='196.44' style='stroke-width: 1.16; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #C66A28;' />
+<polyline points='157.52,256.14 181.72,256.14 ' style='stroke-width: 1.39; stroke: #20364A; stroke-linecap: butt;' />
+<polyline points='169.62,256.14 169.62,314.74 ' style='stroke-width: 1.39; stroke: #20364A; stroke-linecap: butt;' />
+<polyline points='157.52,314.74 181.72,314.74 ' style='stroke-width: 1.39; stroke: #20364A; stroke-linecap: butt;' />
+<polyline points='359.20,60.12 383.40,60.12 ' style='stroke-width: 1.39; stroke: #20364A; stroke-linecap: butt;' />
+<polyline points='371.30,60.12 371.30,202.45 ' style='stroke-width: 1.39; stroke: #20364A; stroke-linecap: butt;' />
+<polyline points='359.20,202.45 383.40,202.45 ' style='stroke-width: 1.39; stroke: #20364A; stroke-linecap: butt;' />
+<text x='169.62' y='232.56' text-anchor='middle' style='font-size: 10.24px; font-weight: bold;fill: #20364A; font-family: "Arial";' textLength='19.91px' lengthAdjust='spacingAndGlyphs'>6/68</text>
+<text x='169.62' y='247.31' text-anchor='middle' style='font-size: 10.24px; font-weight: bold;fill: #20364A; font-family: "Arial";' textLength='23.31px' lengthAdjust='spacingAndGlyphs'>8.8%</text>
+<text x='371.30' y='36.55' text-anchor='middle' style='font-size: 10.24px; font-weight: bold;fill: #20364A; font-family: "Arial";' textLength='25.59px' lengthAdjust='spacingAndGlyphs'>16/32</text>
+<text x='371.30' y='51.30' text-anchor='middle' style='font-size: 10.24px; font-weight: bold;fill: #20364A; font-family: "Arial";' textLength='29.00px' lengthAdjust='spacingAndGlyphs'>50.0%</text>
+</g>
+<g clip-path='url(#cpMC4wMHw1MTAuMjR8MC4wMHwzNTQuMzM=)'>
+<text x='43.24' y='331.31' text-anchor='end' style='font-size: 10.00px;fill: #344C60; font-family: "Arial";' textLength='5.56px' lengthAdjust='spacingAndGlyphs'>0</text>
+<text x='43.24' y='252.73' text-anchor='end' style='font-size: 10.00px;fill: #344C60; font-family: "Arial";' textLength='11.12px' lengthAdjust='spacingAndGlyphs'>20</text>
+<text x='43.24' y='174.16' text-anchor='end' style='font-size: 10.00px;fill: #344C60; font-family: "Arial";' textLength='11.12px' lengthAdjust='spacingAndGlyphs'>40</text>
+<text x='43.24' y='95.58' text-anchor='end' style='font-size: 10.00px;fill: #344C60; font-family: "Arial";' textLength='11.12px' lengthAdjust='spacingAndGlyphs'>60</text>
+<text x='43.24' y='17.00' text-anchor='end' style='font-size: 10.00px;fill: #344C60; font-family: "Arial";' textLength='11.12px' lengthAdjust='spacingAndGlyphs'>80</text>
+<text x='169.62' y='340.27' text-anchor='middle' style='font-size: 10.00px;fill: #344C60; font-family: "Arial";' textLength='101.17px' lengthAdjust='spacingAndGlyphs'>No reported resistance</text>
+<text x='371.30' y='340.27' text-anchor='middle' style='font-size: 10.00px;fill: #344C60; font-family: "Arial";' textLength='85.61px' lengthAdjust='spacingAndGlyphs'>Resistance present</text>
+<text transform='translate(19.83,169.84) rotate(-90)' text-anchor='middle' style='font-size: 11.00px;fill: #20364A; font-family: "Arial";' textLength='226.94px' lengthAdjust='spacingAndGlyphs'>Inadequate empirical antimicrobial therapy (%)</text>
+</g>
+</g>
+</svg>

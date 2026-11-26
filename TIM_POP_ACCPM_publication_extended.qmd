@@ -597,37 +597,14 @@ micro_trajectories <- preEOT_pos |>
    colour = "#526D82",
    linewidth = 0.35
  ) +
-# Labels on the LEFT
-
+# Organism labels on both sides, using the computed stratum positions.
  geom_text(
    stat = "stratum",
-   aes(
-     label = ifelse(
-       after_stat(x) == 1,
-       after_stat(stratum),
-       ""
-     )
-   ),
-   hjust = 1,
-   nudge_x = -0.08,
+   aes(label = after_stat(stratum),
+       hjust = after_stat(ifelse(x == 1, 1.08, -0.08))),
    size = 3.2,
-   lineheight = 0.9
- ) +
-# Labels on the RIGHT
-
- geom_text(
-   stat = "stratum",
-   aes(
-     label = ifelse(
-       after_stat(x) == 2,
-       after_stat(stratum),
-       ""
-     )
-   ),
-   hjust = 0,
-   nudge_x = 0.08,
-   size = 3.2,
-   lineheight = 0.9
+   lineheight = 0.9,
+   colour = "#20364A"
  ) +
     scale_fill_manual(
    values = c(
@@ -640,7 +617,7 @@ micro_trajectories <- preEOT_pos |>
      "Pre-extubation",
      "Postoperative pneumonia"
    ),
-   expand = c(0.32, 0.32)
+   expand = expansion(add = c(0.65, 0.65))
  ) +
     labs(
    title =
@@ -678,9 +655,9 @@ micro_trajectories <- preEOT_pos |>
    ),
         plot.margin = margin(
      t = 15,
-     r = 180,
+     r = 15,
      b = 15,
-     l = 180
+     l = 15
    )
  )
 
@@ -1230,26 +1207,13 @@ final_qc <- tibble(
 stopifnot(n_performed == n_total)
 fmt <- function(k, n) if (n > 0) sprintf("%d/%d (%.1f%%)", k, n, 100*k/n) else "Not evaluable"
 continuous <- function(x) {
+  if (inherits(x, "POSIXt")) x <- as.numeric(difftime(x, as.POSIXct("1899-12-31 00:00:00", tz="UTC"), units="hours"))
   x <- suppressWarnings(as.numeric(x)); x <- x[!is.na(x)]
   if (!length(x)) return("Not evaluable")
   q <- quantile(x, c(.25,.5,.75))
   sprintf("%.1f [%.1f–%.1f] (n=%d)", q[2],q[1],q[3],length(x))
 }
 binary <- function(x, code=1) fmt(sum(x == code, na.rm=TRUE),sum(!is.na(x)))
-# Conversion Excel surgical duration into decimal hours
-data$duree_chirurgie_heure <- as.numeric(
-  difftime(
-    data$duree_chirurgie_heure,
-    as.POSIXct("1899-12-31 00:00:00", tz = "UTC"),
-    units = "hours"
-  )
-)
-
-# Quality control
-stopifnot(
-  all(data$duree_chirurgie_heure >= 0, na.rm = TRUE),
-  all(data$duree_chirurgie_heure < 24, na.rm = TRUE)
-)
 cont_vars <- c("Age, years"="age", "BMI, kg/m²"="bmi", "SOFA score"="score_sofa", "SAPS II"="score_igs2", "Surgery duration, hours"="duree_chirurgie_heure", "Pre-extubation LUS"="lus_preeot")
 bin_vars <- c("Male sex"="sexe", "Hypertension"="hta", "Diabetes"="diabete", "COPD"="bpco", "Immunosuppression"="immunodepression", "Antibiotics within 90 days"="antibiotherapie_moins_90j", "Liver transplantation"="intervention", "Vascular surgery"="type_chirurgie")
 table1_publication <- tibble(Characteristic=c(names(cont_vars),names(bin_vars)), Value=c(vapply(cont_vars,function(v) continuous(data[[v]]),character(1)),vapply(bin_vars,function(v) binary(data[[v]]),character(1))))
@@ -1294,12 +1258,6 @@ fig_micro_sankey <- fig_micro_sankey + theme(
 dir.create("publication",showWarnings=FALSE)
 figures_pub <- list(Figure_1=fig_clinical_utility,Figure_2=fig_resistance_inadequacy,Figure_S1=fig_preeot_micro,Figure_S2=fig_pop_micro,Figure_S3=fig_micro_sankey)
 widths <- c(180,180,180,180,360); heights <- c(110,125,135,150,230)
-for(i in seq_along(figures_pub)) {
-  stem <- file.path("publication",names(figures_pub)[i])
-  ggsave(paste0(stem,".pdf"),figures_pub[[i]],width=widths[i],height=heights[i],units="mm",device=grDevices::cairo_pdf)
-  ggsave(paste0(stem,".tiff"),figures_pub[[i]],width=widths[i],height=heights[i],units="mm",dpi=600,compression="lzw")
-}
-for(i in 1:3) write.csv(get(paste0("table",i,"_publication")),file.path("publication",paste0("Table_",i,".csv")),row.names=FALSE,na="")
 
 # ============================================================
 # ADDITIONAL SENSITIVITY ANALYSES (patient-level)
@@ -1360,8 +1318,6 @@ fig_time <- fig_time + theme_tim_publication() + theme(panel.grid.major.x = elem
 subgroup_table <- bind_rows(lapply(c("surgery","sampling"),function(v) sens |> group_by(Group=.data[[v]]) |> summarise(N=n(),positive=sum(preeot_positive),specific=sum(overlap),adequacy_n=sum(adequacy_known),inadequate=sum(adequacy==0,na.rm=TRUE),candidates=sum(candidate %in% TRUE),unknown=sum(is.na(candidate)),.groups="drop") |> mutate(Stratum=v,Yield=mapply(ci_fmt,positive,N),`Specific overlap among positives`=mapply(ci_fmt,specific,positive),Inadequacy=mapply(ci_fmt,inadequate,adequacy_n),`Observed candidates`=mapply(ci_fmt,candidates,N)) |> select(Stratum,Group,N,Yield,`Specific overlap among positives`,Inadequacy,`Observed candidates`,unknown)))
 # Aggregate-only export; no patient records or dates.
 extra_tables <- list(S4=missing_summary,S5=missing_compare,S6=action_sensitivity,S7=concordance_sensitivity,S8=time_table,S9=subgroup_table)
-for(nm in names(extra_tables)) write.csv(extra_tables[[nm]],file.path("publication",paste0("Table_",nm,".csv")),row.names=FALSE,na="")
-for(nm in c("S4","S5")) {g<-if(nm=="S4")fig_perm else fig_time; stem<-file.path("publication",paste0("Figure_",nm));ggsave(paste0(stem,".pdf"),g,width=180,height=115,units="mm",device=grDevices::cairo_pdf);ggsave(paste0(stem,".tiff"),g,width=180,height=115,units="mm",dpi=600,compression="lzw")}
 
 # Exploratory adjusted analysis: prespecified here for the reanalysis, not the original protocol.
 if (!requireNamespace("logistf", quietly=TRUE)) stop("Install logistf: install.packages('logistf')")
@@ -1378,39 +1334,6 @@ model_table <- tibble(Covariate=c("Reported resistance at POP diagnosis","Antibi
  `95% CI upper`=exp(fit_adjusted$ci.upper[model_terms]),
  `P value`=fit_adjusted$prob[model_terms]) |> mutate(across(where(is.numeric), ~ signif(.x,3)))
 
-# Downloadable aggregate tables: PDF, paginated, with wrapped cells; no LaTeX required.
-if (!requireNamespace("gridExtra", quietly=TRUE)) stop("Install gridExtra: install.packages('gridExtra')")
-export_table_pdf <- function(tbl, stem, title) {
- tbl <- as.data.frame(tbl)
- # Landscape for wide tables; wrap long text instead of shrinking it indefinitely.
- wide <- ncol(tbl)>5
- page_w <- if(wide) 16.5 else 11.7
- page_h <- 8.3
- chars <- max(13, floor((page_w*12)/max(1,ncol(tbl))))
- wrap_cell <- function(x) vapply(as.character(x),function(z) if(is.na(z)) "—" else paste(strwrap(z,width=chars),collapse="\n"),character(1))
- tbl[] <- lapply(tbl,wrap_cell); names(tbl) <- wrap_cell(names(tbl))
- row_lines <- if(nrow(tbl)) apply(tbl,1,function(z) max(lengths(strsplit(z,"\n",fixed=TRUE)))) else integer()
- pages <- list(); start <- 1L
- while(start <= nrow(tbl)) {
-   end <- start; used <- row_lines[start]+1
-   while(end<nrow(tbl) && used+row_lines[end+1]+1 <= 24) {end<-end+1L;used<-used+row_lines[end]+1}
-   pages[[length(pages)+1L]] <- tbl[start:end,,drop=FALSE];start<-end+1L
- }
- if(!length(pages)) pages <- list(tbl)
- grDevices::cairo_pdf(file.path("publication",paste0(stem,".pdf")),width=page_w,height=page_h)
- on.exit(grDevices::dev.off(),add=TRUE)
- for(i in seq_along(pages)) {
-   g <- gridExtra::tableGrob(pages[[i]],rows=NULL,theme=gridExtra::ttheme_minimal(base_size=9,
-     core=list(fg_params=list(hjust=0,x=.03),bg_params=list(fill=c("#F0F5F8","white"),col=NA)),
-     colhead=list(fg_params=list(col="white",fontface="bold"),bg_params=list(fill="#234866",col=NA))))
-   g$widths <- grid::unit(rep(1,ncol(tbl)),"null")
-   grid::grid.newpage()
-   grid::pushViewport(grid::viewport(width=.94,height=.92,layout=grid::grid.layout(3,1,heights=grid::unit.c(grid::unit(.65,"in"),grid::unit(1,"null"),grid::unit(.3,"in")))))
-   grid::grid.text(paste(strwrap(title,width=100),collapse="\n"),x=0,just="left",gp=grid::gpar(fontsize=13,fontface="bold",col="#234866"),vp=grid::viewport(layout.pos.row=1))
-   grid::pushViewport(grid::viewport(layout.pos.row=2)); grid::grid.draw(g);grid::popViewport()
-   grid::grid.text(sprintf("TIM POP | %s | Page %d/%d",stem,i,length(pages)),x=0,just="left",gp=grid::gpar(fontsize=9,col="#526577"),vp=grid::viewport(layout.pos.row=3));grid::popViewport()
- }
-}
 all_tables <- c(list(`1`=table1_publication,`2`=table2_publication,`3`=table3_publication,
  `3b`=adequacy_by_preeot |> transmute(`Pre-extubation culture`=if_else(preeot_positive,"Positive","Negative"),`Inadequate therapy`=sprintf("%d/%d (%.1f%%)",inadequate,n,inadequate_percent)),
  S1=resistance_summary,S2a=adaptation_by_preeot |> mutate(preeot_positive=if_else(preeot_positive,"Positive","Negative")),
@@ -1419,10 +1342,58 @@ all_tables <- c(list(`1`=table1_publication,`2`=table2_publication,`3`=table3_pu
 table_titles <- c(`1`="Patient characteristics",`2`="Microbiological findings",`3`="Antimicrobial management",`3b`="Adequacy by pre-extubation positivity",S1="Resistance phenotypes",S2a="Adaptation by pre-extubation positivity",S2b="Adaptation by specific concordance",S3a="Clinical outcomes",S3b="Exploratory unadjusted comparisons",S4="Availability of analytical variables",S5="Characteristics by adequacy availability",S6="Sensitivity of candidate actionability",S7="Alternative concordance definitions",S8="Concordance by sampling-to-POP interval",S9="Sensitivity by surgery and sampling technique",S10="Exploratory adjusted association with empirical inadequacy")
 all_tables$S4 <- missing_summary |> select(-Missing)
 all_tables$S5 <- missing_compare |> mutate(SMD=round(SMD,2))
+# Independent, non-blocking exports; no PDF device required.
+asset_uris <- list()
+export_asset <- function(path, mime, writer, embed=TRUE) {
+  tryCatch({
+    tmp <- tempfile(fileext=paste0(".", tools::file_ext(path)))
+    on.exit(unlink(tmp), add=TRUE)
+    writer(tmp)
+    if (!file.exists(tmp) || is.na(file.info(tmp)$size) || file.info(tmp)$size <= 0)
+      stop("Empty or missing export")
+    if (!file.copy(tmp, path, overwrite=TRUE)) stop("Cannot copy export")
+    if (embed) asset_uris[[path]] <<- base64enc::dataURI(file=tmp, mime=mime)
+    else asset_uris[[path]] <<- path
+  }, error=function(e) message("Export failed: ",path," — ",conditionMessage(e)))
+}
 for(nm in names(all_tables)) {
- stem <- paste0("Table_",nm)
- write.csv(all_tables[[nm]],file.path("publication",paste0(stem,".csv")),row.names=FALSE,na="")
- export_table_pdf(all_tables[[nm]],stem,paste0("Table ",nm,". ",table_titles[[nm]]))
+  tbl <- as.data.frame(all_tables[[nm]])
+  stem <- file.path("publication",paste0("Table_",nm))
+  export_asset(paste0(stem,".csv"),"text/csv",function(f) write.csv(tbl,f,row.names=FALSE,na=""))
+  export_asset(paste0(stem,".xlsx"),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    function(f) writexl::write_xlsx(tbl,f))
+  export_asset(paste0(stem,".docx"),"application/vnd.openxmlformats-officedocument.wordprocessingml.document",function(f) {
+    ft <- flextable::flextable(tbl)
+    ft <- flextable::theme_vanilla(ft)
+    ft <- flextable::fontsize(ft,size=9,part="all")
+    ft <- flextable::bg(ft,bg="#234866",part="header")
+    ft <- flextable::color(ft,color="white",part="header")
+    ft <- flextable::autofit(ft)
+    wide <- ncol(tbl)>5
+    ft <- flextable::fit_to_width(ft,max_width=if(wide) 10 else 7)
+    doc <- officer::read_docx()
+    doc <- officer::body_add_par(doc,paste0("Table ",nm,". ",table_titles[[nm]]),style="heading 1")
+    doc <- flextable::body_add_flextable(doc,ft)
+    doc <- officer::body_set_default_section(doc,officer::prop_section(page_size=officer::page_size(orient=if(wide) "landscape" else "portrait")))
+    print(doc,target=f)
+  })
+}
+figures_pub <- c(figures_pub,list(Figure_S4=fig_perm,Figure_S5=fig_time))
+widths <- c(widths,180,180); heights <- c(heights,115,115)
+for(i in seq_along(figures_pub)) {
+  stem <- file.path("publication",names(figures_pub)[i])
+  g <- figures_pub[[i]]; w <- widths[i]; h <- heights[i]
+  export_asset(paste0(stem,".png"),"image/png",function(f)
+    ggplot2::ggsave(f,g,width=w,height=h,units="mm",dpi=300,bg="white"))
+  export_asset(paste0(stem,".svg"),"image/svg+xml",function(f)
+    ggplot2::ggsave(f,g,width=w,height=h,units="mm",device=svglite::svglite,bg="white"))
+  export_asset(paste0(stem,".tiff"),"image/tiff",function(f)
+    ggplot2::ggsave(f,g,width=w,height=h,units="mm",dpi=600,compression="lzw",bg="white"),embed=FALSE)
+}
+download_asset <- function(path,label) {
+  uri <- asset_uris[[path]]
+  if (is.null(uri)) return(sprintf('<span class="text-muted small">%s — export unavailable</span>',label))
+  sprintf('<a class="btn btn-outline-primary btn-sm" href="%s" download="%s">%s</a>',uri,basename(path),label)
 }
 
 ```
@@ -1435,7 +1406,14 @@ for(nm in names(all_tables)) {
 knitr::kable(table1_publication,caption="Table 1. Demographic, clinical and surgical characteristics of the study cohort.")
 ```
 
-[Download Table 1 (PDF)](publication/Table_1.pdf) · [CSV](publication/Table_1.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_1.docx", "Download Table 1 (Word)"),
+download_asset("publication/Table_1.xlsx", "Excel"),
+download_asset("publication/Table_1.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 Continuous variables: median [IQR]; categorical variables: n/N (%), with available-case denominators.
 
@@ -1447,7 +1425,14 @@ Continuous variables: median [IQR]; categorical variables: n/N (%), with availab
 fig_clinical_utility
 ```
 
-[PDF vector](publication/Figure_1.pdf) · [TIFF 600 dpi](publication/Figure_1.tiff)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Figure_1.png", "PNG 300 dpi"),
+download_asset("publication/Figure_1.svg", "SVG vector"),
+download_asset("publication/Figure_1.tiff", "TIFF 600 dpi")
+), collapse = " &nbsp; "))
+```
 
 **Figure 1.** Patient-level cascade; percentages use the full cohort denominator. Among `r n_total` sampled POP cases, `r fmt(n_positive,n_performed)` had positive pre-extubation microbiology. Specific overlap was present in `r fmt(n_specific_concordant,n_positive)` positive samples. Specific overlap with inadequate empirical therapy was documented in `r fmt(n_specific_actionable,n_total)` of the cohort. This is a candidate opportunity, not demonstrated preventability. Adequacy was missing in `r n_specific_missing` specifically concordant cases.
 
@@ -1457,7 +1442,14 @@ fig_clinical_utility
 knitr::kable(table2_publication,caption="Table 2. Microbiological yield, concordance and observed candidate actionability.")
 ```
 
-[Download Table 2 (PDF)](publication/Table_2.pdf) · [CSV](publication/Table_2.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_2.docx", "Download Table 2 (Word)"),
+download_asset("publication/Table_2.xlsx", "Excel"),
+download_asset("publication/Table_2.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 Exact binomial confidence intervals. Specific concordance excludes oropharyngeal flora from the intersection, not from the positive-sample denominator.
 
@@ -1468,7 +1460,17 @@ knitr::kable(table3_publication,caption="Table 3. Empirical antimicrobial adequa
 knitr::kable(adequacy_by_preeot |> transmute(`Pre-extubation culture`=if_else(preeot_positive,"Positive","Negative"),`Inadequate therapy`=sprintf("%d/%d (%.1f%%)",inadequate,n,inadequate_percent)))
 ```
 
-[Download Table 3 (PDF)](publication/Table_3.pdf) · [CSV](publication/Table_3.csv) · [Adequacy by positivity (PDF)](publication/Table_3b.pdf) · [CSV](publication/Table_3b.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_3.docx", "Download Table 3 (Word)"),
+download_asset("publication/Table_3.xlsx", "Excel"),
+download_asset("publication/Table_3.csv", "CSV"),
+download_asset("publication/Table_3b.docx", "Adequacy by positivity (Word)"),
+download_asset("publication/Table_3b.xlsx", "Excel"),
+download_asset("publication/Table_3b.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 Empirical therapy was inadequate in `r fmt(n_inadequate,n_adequacy_available)` evaluable cases; adaptation was recorded in `r fmt(n_adapted,n_adaptation_available)`. Adaptation does not necessarily indicate de-escalation.
 
@@ -1480,7 +1482,14 @@ Empirical therapy was inadequate in `r fmt(n_inadequate,n_adequacy_available)` e
 fig_resistance_inadequacy
 ```
 
-[PDF vector](publication/Figure_2.pdf) · [TIFF 600 dpi](publication/Figure_2.tiff)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Figure_2.png", "PNG 300 dpi"),
+download_asset("publication/Figure_2.svg", "SVG vector"),
+download_asset("publication/Figure_2.tiff", "TIFF 600 dpi")
+), collapse = " &nbsp; "))
+```
 
 **Figure 2.** Proportion of inadequate empirical therapy by recorded resistance status, with exact binomial 95% confidence intervals. Unadjusted Fisher exact OR `r sprintf("%.2f",OR_resistance)` (95% CI `r sprintf("%.2f–%.2f",CI_resistance[1],CI_resistance[2])`; P = `r format.pval(p_resistance,digits=3)`). Resistance at POP diagnosis is not a prospective predictor.
 
@@ -1492,7 +1501,14 @@ fig_resistance_inadequacy
 fig_preeot_micro
 ```
 
-[PDF](publication/Figure_S1.pdf) · [TIFF](publication/Figure_S1.tiff)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Figure_S1.png", "PNG 300 dpi"),
+download_asset("publication/Figure_S1.svg", "SVG vector"),
+download_asset("publication/Figure_S1.tiff", "TIFF 600 dpi")
+), collapse = " &nbsp; "))
+```
 
 **Figure S1.** Organism occurrences in pre-extubation samples. Polymicrobial samples may contribute multiple organisms; counts are not mutually exclusive patient proportions.
 
@@ -1502,7 +1518,14 @@ fig_preeot_micro
 fig_pop_micro
 ```
 
-[PDF](publication/Figure_S2.pdf) · [TIFF](publication/Figure_S2.tiff)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Figure_S2.png", "PNG 300 dpi"),
+download_asset("publication/Figure_S2.svg", "SVG vector"),
+download_asset("publication/Figure_S2.tiff", "TIFF 600 dpi")
+), collapse = " &nbsp; "))
+```
 
 **Figure S2.** Organism occurrences at POP diagnosis. Counts describe documented ecology, not organism-specific incidence.
 
@@ -1514,7 +1537,14 @@ fig_pop_micro
 fig_micro_sankey
 ```
 
-[PDF](publication/Figure_S3.pdf) · [TIFF](publication/Figure_S3.tiff)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Figure_S3.png", "PNG 300 dpi"),
+download_asset("publication/Figure_S3.svg", "SVG vector"),
+download_asset("publication/Figure_S3.tiff", "TIFF 600 dpi")
+), collapse = " &nbsp; "))
+```
 
 **Figure S3.** Flows represent pairwise co-occurrences within patients with organisms at both time points, not proven organism transitions or unique patient counts. Polymicrobial samples contribute multiple pairs. Colour denotes patient-level specific overlap.
 
@@ -1524,7 +1554,14 @@ fig_micro_sankey
 knitr::kable(resistance_summary,caption="Table S1. Recorded antimicrobial resistance phenotypes.")
 ```
 
-[Table S1 (PDF)](publication/Table_S1.pdf) · [CSV](publication/Table_S1.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_S1.docx", "Table S1 (Word)"),
+download_asset("publication/Table_S1.xlsx", "Excel"),
+download_asset("publication/Table_S1.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 Recorded phenotypes describe resistance at POP diagnosis; they do not establish prior susceptibility or availability to clinicians.
 
@@ -1535,7 +1572,17 @@ knitr::kable(adaptation_by_preeot |> mutate(preeot_positive=if_else(preeot_posit
 knitr::kable(adaptation_by_specific_concordance |> mutate(concordant_specific=if_else(concordant_specific,"Yes","No")),caption="Table S2b. Adaptation by specific concordance among positive samples.")
 ```
 
-[Table S2a (PDF)](publication/Table_S2a.pdf) · [CSV](publication/Table_S2a.csv) · [Table S2b (PDF)](publication/Table_S2b.pdf) · [CSV](publication/Table_S2b.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_S2a.docx", "Table S2a (Word)"),
+download_asset("publication/Table_S2a.xlsx", "Excel"),
+download_asset("publication/Table_S2a.csv", "CSV"),
+download_asset("publication/Table_S2b.docx", "Table S2b (Word)"),
+download_asset("publication/Table_S2b.xlsx", "Excel"),
+download_asset("publication/Table_S2b.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 The tables describe recorded adaptation by pre-EOT positivity and specific concordance. They cannot establish that prior sampling caused a treatment change.
 
@@ -1546,7 +1593,17 @@ knitr::kable(outcome_publication,caption="Table S3a. Clinical outcomes by empiri
 knitr::kable(outcome_tests,digits=3,caption="Table S3b. Exploratory unadjusted comparisons.")
 ```
 
-[Table S3a (PDF)](publication/Table_S3a.pdf) · [CSV](publication/Table_S3a.csv) · [Table S3b (PDF)](publication/Table_S3b.pdf) · [CSV](publication/Table_S3b.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_S3a.docx", "Table S3a (Word)"),
+download_asset("publication/Table_S3a.xlsx", "Excel"),
+download_asset("publication/Table_S3a.csv", "CSV"),
+download_asset("publication/Table_S3b.docx", "Table S3b (Word)"),
+download_asset("publication/Table_S3b.xlsx", "Excel"),
+download_asset("publication/Table_S3b.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 Unadjusted exploratory comparisons; no multiplicity correction. Event counts are not rates.
 
@@ -1557,7 +1614,14 @@ Unadjusted exploratory comparisons; no multiplicity correction. Event counts are
 knitr::kable(missing_summary |> select(-Missing),caption="Table S4. Missing or non-evaluable analytical variables in the full cohort.")
 ```
 
-[Table S4 (PDF)](publication/Table_S4.pdf) · [CSV](publication/Table_S4.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_S4.docx", "Table S4 (Word)"),
+download_asset("publication/Table_S4.xlsx", "Excel"),
+download_asset("publication/Table_S4.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 Empirical adequacy was unavailable for `r fmt(n_total-n_adequacy_available,n_total)` patients. Blank entries and non-binary responses are treated as non-evaluable; the reasons require clinical review. Structural non-evaluability is not assumed to be random missingness.
 
@@ -1567,7 +1631,14 @@ Empirical adequacy was unavailable for `r fmt(n_total-n_adequacy_available,n_tot
 knitr::kable(missing_compare,digits=2,caption="Table S5. Available-case characteristics by availability of empirical adequacy.")
 ```
 
-[Table S5 (PDF)](publication/Table_S5.pdf) · [CSV](publication/Table_S5.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_S5.docx", "Table S5 (Word)"),
+download_asset("publication/Table_S5.xlsx", "Excel"),
+download_asset("publication/Table_S5.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 Values are median [IQR] or n/N (%). SMD is the signed standardized mean difference (evaluable minus non-evaluable), using the pooled within-group variance. Differences may indicate selection into the evaluable subset; they do not establish the missingness mechanism.
 
@@ -1577,7 +1648,14 @@ Values are median [IQR] or n/N (%). SMD is the signed standardized mean differen
 knitr::kable(action_sensitivity,caption="Table S6. Observed candidate proportion and extreme assumptions for unknown composite outcomes.")
 ```
 
-[Table S6 (PDF)](publication/Table_S6.pdf) · [CSV](publication/Table_S6.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_S6.docx", "Table S6 (Word)"),
+download_asset("publication/Table_S6.xlsx", "Excel"),
+download_asset("publication/Table_S6.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 The composite is specific overlap plus inadequate empirical therapy. It is unknown in `r unknown_candidate` patients; absence of overlap makes the composite negative even when adequacy is unavailable. Extreme scenarios bound the composite under the recorded microbiology, not the true clinical benefit. Result availability, susceptibility and coverage of the matching organism require chart adjudication.
 
@@ -1587,7 +1665,14 @@ The composite is specific overlap plus inadequate empirical therapy. It is unkno
 knitr::kable(concordance_sensitivity,caption="Table S7. Patient-level concordance under alternative organism-set definitions; exact binomial 95% confidence intervals.")
 ```
 
-[Table S7 (PDF)](publication/Table_S7.pdf) · [CSV](publication/Table_S7.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_S7.docx", "Table S7 (Word)"),
+download_asset("publication/Table_S7.xlsx", "Excel"),
+download_asset("publication/Table_S7.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 The main definition requires at least one shared specific organism. More stringent definitions distinguish identical nonempty profiles from coverage of all documented specific POP organisms. Empty profiles never count as matches. These are species-level comparisons, not evidence of strain identity or antibiotic susceptibility.
 
@@ -1601,7 +1686,14 @@ fig_perm
 
 **Figure S4.** Distribution of specific concordance after 10,000 permutations of complete POP organism profiles among positive pre-EOT patients with known primary microbiology codes. The vertical line denotes observed concordance. Observed concordance was `r fmt(obs_perm,nrow(sp))`, compared with a mean of `r sprintf("%.1f%%",perm_expected)` under random pairing (one-sided Monte Carlo P = `r format.pval(perm_p,digits=3)`). Exchangeability is assumed; shared surgery type, antibiotic exposure or calendar-period ecology may explain part of the association. This is exploratory and does not prove bacterial persistence.
 
-[PDF](publication/Figure_S4.pdf) · [TIFF](publication/Figure_S4.tiff)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Figure_S4.png", "PNG 300 dpi"),
+download_asset("publication/Figure_S4.svg", "SVG vector"),
+download_asset("publication/Figure_S4.tiff", "TIFF 600 dpi")
+), collapse = " &nbsp; "))
+```
 
 ## Table S8 — Concordance by sampling-to-POP interval
 
@@ -1609,7 +1701,14 @@ fig_perm
 knitr::kable(time_table,caption="Table S8. Specific overlap by calendar-day interval from pre-extubation sampling to POP diagnosis.")
 ```
 
-[Table S8 (PDF)](publication/Table_S8.pdf) · [CSV](publication/Table_S8.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_S8.docx", "Table S8 (Word)"),
+download_asset("publication/Table_S8.xlsx", "Excel"),
+download_asset("publication/Table_S8.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 The categories follow the initial manuscript and are descriptive. `r nrow(sp)-nrow(time_data)` positive-sample patients were excluded from this temporal analysis because of missing or negative intervals. This interval is not necessarily the interval from extubation to POP.
 
@@ -1623,7 +1722,14 @@ fig_time
 
 **Figure S5.** Estimated probability of specific overlap according to sampling-to-POP interval. Shading denotes pointwise 95% Wald confidence intervals; rug marks show observed intervals. The exploratory unadjusted logistic model estimated an OR per additional calendar day of `r sprintf("%.2f",time_or)` (95% CI `r sprintf("%.2f–%.2f",time_ci[1],time_ci[2])`; P = `r format.pval(time_beta[4],digits=3)`). The model assumes linearity on the log-odds scale; no optimal threshold or validated predictive performance is claimed.
 
-[PDF](publication/Figure_S5.pdf) · [TIFF](publication/Figure_S5.tiff)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Figure_S5.png", "PNG 300 dpi"),
+download_asset("publication/Figure_S5.svg", "SVG vector"),
+download_asset("publication/Figure_S5.tiff", "TIFF 600 dpi")
+), collapse = " &nbsp; "))
+```
 
 ## Table S9 — Sensitivity by surgery and sampling technique
 
@@ -1631,7 +1737,14 @@ fig_time
 knitr::kable(subgroup_table,caption="Table S9. Descriptive microbiological and therapeutic findings by surgical and sampling strata; exact binomial 95% confidence intervals.")
 ```
 
-[Table S9 (PDF)](publication/Table_S9.pdf) · [CSV](publication/Table_S9.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_S9.docx", "Table S9 (Word)"),
+download_asset("publication/Table_S9.xlsx", "Excel"),
+download_asset("publication/Table_S9.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 Denominators differ by endpoint: all patients for yield and observed candidates, positive samples for specific overlap, evaluable adequacy for inadequacy. The unknown column counts non-evaluable composite outcomes. No interaction tests are performed because of sparse strata; these comparisons are not adjusted for case mix.
 
@@ -1641,7 +1754,14 @@ Denominators differ by endpoint: all patients for yield and observed candidates,
 knitr::kable(model_table,caption="Table S10. Firth penalised logistic regression for empirical antimicrobial inadequacy; adjusted odds ratios and profile penalised likelihood 95% confidence intervals.")
 ```
 
-[Table S10 (PDF)](publication/Table_S10.pdf) · [CSV](publication/Table_S10.csv)
+```{r}
+#| results: asis
+cat(paste(c(
+download_asset("publication/Table_S10.docx", "Table S10 (Word)"),
+download_asset("publication/Table_S10.xlsx", "Excel"),
+download_asset("publication/Table_S10.csv", "CSV")
+), collapse = " &nbsp; "))
+```
 
 The complete-case model included `r nrow(model_data)` patients and `r sum(model_data$inadequate)` inadequacy events. Covariates were selected on clinical grounds for this exploratory reanalysis: reported resistance, antibiotic exposure within 90 days before surgery and liver transplantation. The adjusted OR for resistance was `r sprintf("%.2f",model_table[["Adjusted OR"]][1])` (95% CI `r sprintf("%.2f–%.2f",model_table[["95% CI lower"]][1],model_table[["95% CI upper"]][1])`). Penalisation reduces small-sample bias but does not eliminate imprecision, residual confounding or selection bias. Resistance at POP diagnosis is partly linked to the definition of adequacy; this is neither a causal model nor a prospective prediction model.
 
