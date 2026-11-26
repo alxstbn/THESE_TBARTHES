@@ -1,0 +1,5 @@
+"Scenario","k","N","Estimate"
+"Observed candidate proportion",8,122,"8/122 (6.6%)"
+"Evaluable composite only",8,120,"8/120 (6.7%)"
+"All unknown composite outcomes negative",8,122,"8/122 (6.6%)"
+"All unknown composite outcomes positive",10,122,"10/122 (8.2%)"

@@ -1,0 +1,1649 @@
+---
+title: "Clinical utility of pre-extubation respiratory sampling"
+subtitle: "TIM POP study — ACCPM manuscript figures and tables"
+author: "Alexandre Sitbon"
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-location: left
+    toc-depth: 2
+    number-sections: false
+    embed-resources: true
+    smooth-scroll: true
+execute:
+  echo: false
+  warning: false
+  message: false
+  error: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+
+# ============================================================
+# PACKAGES
+# ============================================================
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggalluvial)
+
+# ============================================================
+# DATA IMPORT
+# ============================================================
+data <- read_excel(
+ "data/TIM_POP_database_FINAL.xlsx",
+ sheet = "Inclusion" )
+dict <- read_excel(
+ "data/TIM_POP_database_FINAL.xlsx",
+ sheet = "Dictionnaire variable" )
+
+# ============================================================
+# DATABASE QUALITY CONTROL
+# ============================================================
+qc_population <- tibble(
+ Parameter = c(
+   "Number of observations",
+   "Number of variables",
+   "Unique patient identifiers",
+   "Duplicated patient identifiers"
+ ),
+ Value = c(
+   nrow(data),
+   ncol(data),
+   n_distinct(data$Numero),
+   sum(duplicated(data$Numero))
+ ) )
+stopifnot(nrow(data) == 122)
+stopifnot(n_distinct(data$Numero) == 122)
+stopifnot(sum(duplicated(data$Numero)) == 0)
+
+# ============================================================
+# KEY VARIABLES
+# ============================================================
+key_variables <- c(
+ "type_prelevement_preeot",
+ "pathogene_preeot",
+ "pathogene_preeot_2",
+ "pathogene_preeot_3",
+ "adequation_antibiotherapie_probabiliste",
+ "echec_traitement_initial",
+ "adaptation_ATB_48h",
+ "resistance_phenotypique_germe" )
+
+# ============================================================
+# CLEAN BINARY / NUMERIC VARIABLES
+# ============================================================
+data <- data |>
+ mutate(
+   adequacy = suppressWarnings(
+     as.numeric(adequation_antibiotherapie_probabiliste)
+   ),
+   initial_failure = suppressWarnings(
+     as.numeric(echec_traitement_initial)
+   ),
+   adaptation_48h = suppressWarnings(
+     as.numeric(adaptation_ATB_48h)
+   ),
+   resistance_code = suppressWarnings(
+     as.numeric(resistance_phenotypique_germe)
+   )
+ )
+stopifnot(
+ all(na.omit(unique(data$adequacy)) %in% c(0, 1)) )
+stopifnot(
+ all(na.omit(unique(data$initial_failure)) %in% c(0, 1)) )
+stopifnot(
+ all(na.omit(unique(data$adaptation_48h)) %in% c(0, 1)) )
+
+# ============================================================
+# MICROBIOLOGICAL DICTIONARY
+# ============================================================
+pathogen_labels <- c(
+ `0` = "No microorganism",
+ `1` = "MSSA",
+ `2` = "Oropharyngeal flora",
+ `3` = "Enterococcus faecium",
+ `4` = "Citrobacter freundii",
+ `5` = "Hafnia alvei",
+ `6` = "Klebsiella pneumoniae",
+ `7` = "Escherichia coli",
+ `8` = "Pseudomonas aeruginosa",
+ `9` = "Proteus mirabilis",
+ `10` = "Corynebacterium spp.",
+ `11` = "Serratia marcescens",
+ `12` = "Enterobacter aerogenes",
+ `13` = "Enterococcus faecalis",
+ `14` = "Haemophilus influenzae",
+ `15` = "Acinetobacter baumannii",
+ `16` = "Staphylococcus epidermidis",
+ `17` = "Moraxella catarrhalis",
+ `18` = "Staphylococcus haemolyticus",
+ `19` = "Mycoplasma pneumoniae",
+ `20` = "Enterobacter cloacae",
+ `21` = "Stenotrophomonas maltophilia",
+ `22` = "Streptococcus pneumoniae" )
+label_pathogen <- function(x) {
+ unname(pathogen_labels[as.character(x)]) }
+
+# ============================================================
+# PRE-EXTUBATION SAMPLING
+# ============================================================
+data <- data |>
+ mutate(
+   preeot_performed = case_when(
+     type_prelevement_preeot == 0 ~ FALSE,
+     type_prelevement_preeot %in% 1:4 ~ TRUE,
+     TRUE ~ NA
+   )
+ )
+n_total <- nrow(data)
+n_performed <- sum(
+ data$preeot_performed == TRUE,
+ na.rm = TRUE )
+n_not_performed <- sum(
+ data$preeot_performed == FALSE,
+ na.rm = TRUE )
+
+# ============================================================
+# PRE-EOT MICROBIOLOGICAL YIELD
+# ============================================================
+data <- data |>
+ rowwise() |>
+ mutate(
+   preeot_positive = any(
+     c_across(
+       c(
+         pathogene_preeot,
+         pathogene_preeot_2,
+         pathogene_preeot_3
+       )
+     ) > 0,
+     na.rm = TRUE
+   )
+ ) |>
+ ungroup()
+n_positive <- sum(
+ data$preeot_performed &
+   data$preeot_positive,
+ na.rm = TRUE )
+n_negative <- sum(
+ data$preeot_performed &
+   !data$preeot_positive,
+ na.rm = TRUE )
+yield_preeot <- 100 * n_positive / n_performed
+yield_ci <- 100 * binom.test(
+ n_positive,
+ n_performed )$conf.int
+stopifnot(
+ n_positive + n_negative == n_performed )
+
+# ============================================================
+# POSITIVE PRE-EOT SAMPLES
+# ============================================================
+preEOT_pos <- data |>
+ filter(
+   preeot_performed,
+   preeot_positive
+ ) |>
+ select(
+   Numero,
+   pathogene_preeot,
+   pathogene_preeot_2,
+   pathogene_preeot_3,
+   pathogene_ppo,
+   pathogene_ppo_2,
+   pathogene_ppo_3,
+   adequacy,
+   adaptation_48h,
+   resistance_code,
+   date_prelevement_preeot,
+   date_diagnostic_ppo
+ )
+stopifnot(
+ nrow(preEOT_pos) == n_positive )
+
+# ============================================================
+# BROAD MICROBIOLOGICAL CONCORDANCE
+# ============================================================
+preEOT_pos <- preEOT_pos |>
+ rowwise() |>
+ mutate(
+   concordant = {
+      pre <- c(
+       pathogene_preeot,
+       pathogene_preeot_2,
+       pathogene_preeot_3
+     )
+      pop <- c(
+       pathogene_ppo,
+       pathogene_ppo_2,
+       pathogene_ppo_3
+     )
+      pre <- pre[
+       !is.na(pre) &
+         pre > 0
+     ]
+      pop <- pop[
+       !is.na(pop) &
+         pop > 0
+     ]
+      length(intersect(pre, pop)) > 0
+   }
+ ) |>
+ ungroup()
+n_concordant <- sum(
+ preEOT_pos$concordant )
+n_discordant <- sum(
+ !preEOT_pos$concordant )
+concordance_ci <- 100 * binom.test(
+ n_concordant,
+ n_positive )$conf.int
+
+# ============================================================
+# SPECIFIC CONCORDANCE EXCLUDING OROPHARYNGEAL FLORA
+# ============================================================
+preEOT_pos <- preEOT_pos |>
+ rowwise() |>
+ mutate(
+   concordant_specific = {
+      pre <- c(
+       pathogene_preeot,
+       pathogene_preeot_2,
+       pathogene_preeot_3
+     )
+      pop <- c(
+       pathogene_ppo,
+       pathogene_ppo_2,
+       pathogene_ppo_3
+     )
+      pre <- pre[
+       !is.na(pre) &
+         pre > 0 &
+         pre != 2
+     ]
+      pop <- pop[
+       !is.na(pop) &
+         pop > 0 &
+         pop != 2
+     ]
+      length(intersect(pre, pop)) > 0
+   }
+ ) |>
+ ungroup()
+n_specific_concordant <- sum(
+ preEOT_pos$concordant_specific )
+specific_concordance_ci <- 100 * binom.test(
+ n_specific_concordant,
+ n_positive )$conf.int
+
+# ============================================================
+# EMPIRICAL ANTIMICROBIAL ADEQUACY
+# ============================================================
+n_adequacy_available <- sum(
+ !is.na(data$adequacy) )
+n_adequate <- sum(
+ data$adequacy == 1,
+ na.rm = TRUE )
+n_inadequate <- sum(
+ data$adequacy == 0,
+ na.rm = TRUE )
+stopifnot(
+ n_adequate + n_inadequate ==
+   n_adequacy_available )
+adequacy_by_preeot <- data |>
+ filter(
+   !is.na(adequacy)
+ ) |>
+ group_by(
+   preeot_positive
+ ) |>
+ summarise(
+   n = n(),
+   adequate = sum(adequacy == 1),
+   inadequate = sum(adequacy == 0),
+   inadequate_percent =
+     100 * inadequate / n,
+   .groups = "drop"
+ )
+
+# ============================================================
+# POTENTIAL CLINICAL ACTIONABILITY
+# ============================================================
+specific_actionability_cases <- preEOT_pos |>
+ filter(
+   concordant_specific,
+   adequacy == 0
+ )
+n_specific_actionable <- nrow(
+ specific_actionability_cases )
+pct_specific_actionable_total <-
+ 100 * n_specific_actionable /
+ n_total
+pct_specific_actionable_positive <-
+ 100 * n_specific_actionable /
+ n_positive
+pct_specific_actionable_specific <-
+ 100 * n_specific_actionable /
+ n_specific_concordant
+actionability_ci <- 100 * binom.test(
+ n_specific_actionable,
+ n_total )$conf.int
+
+# ============================================================
+# TIMING
+# ============================================================
+specific_actionability_cases <-
+ specific_actionability_cases |>
+ mutate(
+   delay_preEOT_POP =
+     as.numeric(
+       as.Date(date_diagnostic_ppo) -
+         as.Date(date_prelevement_preeot)
+     )
+ )
+actionability_timing <- specific_actionability_cases |>
+ summarise(
+   n = n(),
+   median_delay = median(
+     delay_preEOT_POP,
+     na.rm = TRUE
+   ),
+   Q1 = quantile(
+     delay_preEOT_POP,
+     0.25,
+     na.rm = TRUE
+   ),
+   Q3 = quantile(
+     delay_preEOT_POP,
+     0.75,
+     na.rm = TRUE
+   )
+ )
+
+# ============================================================
+# MICROBIOLOGICAL ECOLOGY
+# ============================================================
+preeot_micro_long <- data |>
+ select(
+   Numero,
+   pathogene_preeot,
+   pathogene_preeot_2,
+   pathogene_preeot_3
+ ) |>
+ pivot_longer(
+   cols = starts_with("pathogene_preeot"),
+   names_to = "rank",
+   values_to = "pathogen_code"
+ ) |>
+ filter(
+   !is.na(pathogen_code),
+   pathogen_code > 0
+ ) |>
+ mutate(
+   pathogen =
+     label_pathogen(pathogen_code)
+ )
+preeot_micro_summary <- preeot_micro_long |>
+ count(
+   pathogen,
+   sort = TRUE,
+   name = "n"
+ )
+fig_preeot_micro <- preeot_micro_summary |>
+ ggplot(
+   aes(
+     x = reorder(pathogen, n),
+     y = n
+   )
+ ) +
+ geom_col(
+   width = 0.7,
+   fill = "#397FA9"
+ ) +
+ geom_text(
+   aes(label = n),
+   hjust = -0.25,
+   size = 3.5
+ ) +
+ coord_flip() +
+ labs(
+   title =
+     "Microorganisms isolated before extubation",
+   x = NULL,
+   y = "Number of isolates"
+ ) +
+ theme_classic(
+   base_size = 12
+ ) +
+ theme(
+   plot.title =
+     element_text(face = "bold")
+ ) +
+ expand_limits(
+   y =
+     max(preeot_micro_summary$n) + 3
+ )
+ pop_micro_long <- data |>
+ select(
+   Numero,
+   pathogene_ppo,
+   pathogene_ppo_2,
+   pathogene_ppo_3
+ ) |>
+ pivot_longer(
+   cols = starts_with("pathogene_ppo"),
+   names_to = "rank",
+   values_to = "pathogen_code"
+ ) |>
+ filter(
+   !is.na(pathogen_code),
+   pathogen_code > 0
+ ) |>
+ mutate(
+   pathogen =
+     label_pathogen(pathogen_code)
+ )
+pop_micro_summary <- pop_micro_long |>
+ count(
+   pathogen,
+   sort = TRUE,
+   name = "n"
+ )
+fig_pop_micro <- pop_micro_summary |>
+ ggplot(
+   aes(
+     x = reorder(pathogen, n),
+     y = n
+   )
+ ) +
+ geom_col(
+   width = 0.7,
+   fill = "#16857A"
+ ) +
+ geom_text(
+   aes(label = n),
+   hjust = -0.25,
+   size = 3.5
+ ) +
+ coord_flip() +
+ labs(
+   title =
+     "Microorganisms isolated at POP diagnosis",
+   x = NULL,
+   y = "Number of isolates"
+ ) +
+ theme_classic(
+   base_size = 12
+ ) +
+ theme(
+   plot.title =
+     element_text(face = "bold")
+ ) +
+ expand_limits(
+   y =
+     max(pop_micro_summary$n) + 3
+ )
+
+# ============================================================
+# MICROBIOLOGICAL SANKEY
+# Positive pre-EOT samples only
+# ============================================================
+micro_trajectories <- preEOT_pos |>
+ rowwise() |>
+ mutate(
+   pre_specific = list(
+     unique(
+       c(
+         pathogene_preeot,
+         pathogene_preeot_2,
+         pathogene_preeot_3
+       )[
+         !is.na(
+           c(
+             pathogene_preeot,
+             pathogene_preeot_2,
+             pathogene_preeot_3
+           )
+         ) &
+           c(
+             pathogene_preeot,
+             pathogene_preeot_2,
+             pathogene_preeot_3
+           ) > 0
+       ]
+     )
+   ),
+        pop_specific = list(
+     unique(
+       c(
+         pathogene_ppo,
+         pathogene_ppo_2,
+         pathogene_ppo_3
+       )[
+         !is.na(
+           c(
+             pathogene_ppo,
+             pathogene_ppo_2,
+             pathogene_ppo_3
+           )
+         ) &
+           c(
+             pathogene_ppo,
+             pathogene_ppo_2,
+             pathogene_ppo_3
+           ) > 0
+       ]
+     )
+   )
+ ) |>
+ ungroup() |>
+ select(
+   Numero,
+   concordant_specific,
+   pre_specific,
+   pop_specific
+ ) |>
+ unnest_longer(
+   pre_specific,
+   values_to = "pre_code"
+ ) |>
+ unnest_longer(
+   pop_specific,
+   values_to = "pop_code"
+ ) |>
+ mutate(
+   Pre_EOT_microbiology =
+     label_pathogen(pre_code),
+        POP_microbiology =
+     label_pathogen(pop_code),
+        concordance_group =
+     if_else(
+       concordant_specific,
+       "Specific concordance",
+       "No specific concordance"
+     )
+ ) |>
+ filter(
+   !is.na(Pre_EOT_microbiology),
+   !is.na(POP_microbiology)
+ ) |>
+ count(
+   Pre_EOT_microbiology,
+   POP_microbiology,
+   concordance_group,
+   name = "n"
+ )
+ fig_micro_sankey <- ggplot(
+ micro_trajectories,
+ aes(
+   axis1 = Pre_EOT_microbiology,
+   axis2 = POP_microbiology,
+   y = n
+ ) ) +
+ geom_alluvium(
+   aes(fill = concordance_group),
+   width = 0.12,
+   alpha = 0.68,
+   knot.pos = 0.45
+ ) +
+ geom_stratum(
+   width = 0.12,
+   fill = "#E6EFF5",
+   colour = "#526D82",
+   linewidth = 0.35
+ ) +
+# Labels on the LEFT
+
+ geom_text(
+   stat = "stratum",
+   aes(
+     label = ifelse(
+       after_stat(x) == 1,
+       after_stat(stratum),
+       ""
+     )
+   ),
+   hjust = 1,
+   nudge_x = -0.08,
+   size = 3.2,
+   lineheight = 0.9
+ ) +
+# Labels on the RIGHT
+
+ geom_text(
+   stat = "stratum",
+   aes(
+     label = ifelse(
+       after_stat(x) == 2,
+       after_stat(stratum),
+       ""
+     )
+   ),
+   hjust = 0,
+   nudge_x = 0.08,
+   size = 3.2,
+   lineheight = 0.9
+ ) +
+    scale_fill_manual(
+   values = c(
+     "Specific concordance" = "#16857A",
+     "No specific concordance" = "#D18A46"
+   )
+ ) +
+    scale_x_discrete(
+   limits = c(
+     "Pre-extubation",
+     "Postoperative pneumonia"
+   ),
+   expand = c(0.32, 0.32)
+ ) +
+    labs(
+   title =
+     "Microbiological trajectories from pre-extubation sampling to postoperative pneumonia",
+        subtitle =
+     paste0("Positive pre-extubation samples (n = ", n_positive, "); pairwise co-occurrences"),
+        x = NULL,
+   y = "Number of patient–organism pairs across samples",
+   fill = NULL
+ ) +
+    coord_cartesian(clip = "off") +
+    theme_classic(base_size = 12) +
+    theme(
+   axis.text.y = element_blank(),
+   axis.ticks.y = element_blank(),
+   axis.line.y = element_blank(),
+        axis.text.x = element_text(
+     face = "bold",
+     size = 11,
+     margin = margin(t = 8)
+   ),
+        axis.title.y = element_text(
+     size = 11,
+     margin = margin(r = 12)
+   ),
+        legend.position = "bottom",
+   legend.text = element_text(size = 10),
+        plot.title = element_text(
+     face = "bold",
+     size = 14
+   ),
+        plot.subtitle = element_text(
+     size = 11,
+     margin = margin(b = 15)
+   ),
+        plot.margin = margin(
+     t = 15,
+     r = 180,
+     b = 15,
+     l = 180
+   )
+ )
+
+# ============================================================
+# ANTIMICROBIAL RESISTANCE
+# ============================================================
+data <- data |>
+ mutate(
+   resistance_status = case_when(
+     resistance_code == 0 ~
+       "No reported resistance",
+      resistance_code == 1 ~
+       "ESBL",
+      resistance_code == 2 ~
+       "Carbapenemase",
+      resistance_code == 3 ~
+       "Methicillin resistance",
+      resistance_code == 4 ~
+       "Cephalosporinase",
+      resistance_code == 5 ~
+       "Highly resistant Pseudomonas",
+      TRUE ~ NA_character_
+   ),
+    any_resistance = case_when(
+     resistance_code == 0 ~ 0,
+     resistance_code %in% 1:5 ~ 1,
+     TRUE ~ NA_real_
+   )
+ )
+resistance_summary <- data |>
+ filter(
+   !is.na(resistance_status)
+ ) |>
+ count(
+   resistance_status,
+   name = "n"
+ ) |>
+ mutate(
+   percent =
+     100 * n / sum(n)
+ )
+n_resistance_available <- sum(
+ !is.na(data$any_resistance) )
+n_resistant <- sum(
+ data$any_resistance == 1,
+ na.rm = TRUE )
+pct_resistant <-
+ 100 * n_resistant /
+ n_resistance_available
+
+# ============================================================
+# RESISTANCE AND EMPIRICAL INADEQUACY
+# ============================================================
+resistance_inadequacy <- data |>
+ filter(
+   !is.na(any_resistance),
+   !is.na(adequacy)
+ ) |>
+ group_by(
+   any_resistance
+ ) |>
+ summarise(
+   n = n(),
+   inadequate =
+     sum(adequacy == 0),
+   adequate =
+     sum(adequacy == 1),
+   inadequacy_percent =
+     100 * inadequate / n,
+   .groups = "drop"
+ ) |>
+ mutate(
+   resistance = if_else(
+     any_resistance == 1,
+     "Resistance present",
+     "No reported resistance"
+   )
+ )
+table_resistance_inadequacy <- table(
+ Resistance = data$any_resistance,
+ Inadequate = 1 - data$adequacy,
+ useNA = "no" )
+fisher_resistance_inadequacy <-
+ fisher.test(
+   table_resistance_inadequacy
+ )
+OR_resistance <- unname(
+ fisher_resistance_inadequacy$estimate )
+CI_resistance <-
+ fisher_resistance_inadequacy$conf.int
+p_resistance <-
+ fisher_resistance_inadequacy$p.value
+
+# ============================================================
+# ANTIMICROBIAL ADAPTATION AT 48 HOURS
+# ============================================================
+n_adaptation_available <- sum(
+ !is.na(data$adaptation_48h) )
+n_adapted <- sum(
+ data$adaptation_48h == 1,
+ na.rm = TRUE )
+pct_adapted <-
+ 100 * n_adapted /
+ n_adaptation_available
+adaptation_by_preeot <- data |>
+ filter(
+   !is.na(adaptation_48h)
+ ) |>
+ group_by(
+   preeot_positive
+ ) |>
+ summarise(
+   n = n(),
+   adapted =
+     sum(adaptation_48h == 1),
+   not_adapted =
+     sum(adaptation_48h == 0),
+   adapted_percent =
+     100 * adapted / n,
+   .groups = "drop"
+ )
+fisher_adaptation_preeot <-
+ fisher.test(
+   table(
+     data$preeot_positive,
+     data$adaptation_48h,
+     useNA = "no"
+   )
+ )
+adaptation_by_specific_concordance <-
+ preEOT_pos |>
+ filter(
+   !is.na(adaptation_48h)
+ ) |>
+ group_by(
+   concordant_specific
+ ) |>
+ summarise(
+   n = n(),
+   adapted =
+     sum(adaptation_48h == 1),
+   not_adapted =
+     sum(adaptation_48h == 0),
+   adapted_percent =
+     100 * adapted / n,
+   .groups = "drop"
+ )
+
+# ============================================================
+# CLINICAL OUTCOMES
+# ============================================================
+outcome_publication <- data |>
+ filter(
+   !is.na(adequacy)
+ ) |>
+ mutate(
+   empirical_therapy = if_else(
+     adequacy == 1,
+     "Adequate",
+     "Inadequate"
+   )
+ ) |>
+ group_by(
+   empirical_therapy
+ ) |>
+ summarise(
+   n = n(),
+    ICU_LOS_median =
+     median(
+       duree_sejour_reanimation,
+       na.rm = TRUE
+     ),
+    ICU_LOS_Q1 =
+     quantile(
+       duree_sejour_reanimation,
+       0.25,
+       na.rm = TRUE
+     ),
+    ICU_LOS_Q3 =
+     quantile(
+       duree_sejour_reanimation,
+       0.75,
+       na.rm = TRUE
+     ),
+    Hospital_LOS_median =
+     median(
+       duree_sejour_hopital,
+       na.rm = TRUE
+     ),
+    Hospital_LOS_Q1 =
+     quantile(
+       duree_sejour_hopital,
+       0.25,
+       na.rm = TRUE
+     ),
+    Hospital_LOS_Q3 =
+     quantile(
+       duree_sejour_hopital,
+       0.75,
+       na.rm = TRUE
+     ),
+    ICU_death =
+     sum(
+       dc_reanimation == 1,
+       na.rm = TRUE
+     ),
+    Hospital_death =
+     sum(
+       dc_hopital == 1,
+       na.rm = TRUE
+     ),
+    POP_recurrence =
+     sum(
+       recidive_ppo == 1,
+       na.rm = TRUE
+     ),
+    .groups = "drop"
+ )
+wilcox_icu_los <- wilcox.test(
+ duree_sejour_reanimation ~ adequacy,
+ data = data,
+ exact = FALSE )
+wilcox_hospital_los <- wilcox.test(
+ duree_sejour_hopital ~ adequacy,
+ data = data,
+ exact = FALSE )
+fisher_icu_death <- fisher.test(
+ table(
+   data$adequacy,
+   data$dc_reanimation,
+   useNA = "no"
+ ) )
+fisher_hospital_death <- fisher.test(
+ table(
+   data$adequacy,
+   data$dc_hopital,
+   useNA = "no"
+ ) )
+fisher_pop_recurrence <- fisher.test(
+ table(
+   data$adequacy,
+   data$recidive_ppo,
+   useNA = "no"
+ ) )
+outcome_tests <- tibble(
+ Outcome = c(
+   "ICU length of stay",
+   "Hospital length of stay",
+   "ICU mortality",
+   "Hospital mortality",
+   "POP recurrence"
+ ),
+  P_value = c(
+   wilcox_icu_los$p.value,
+   wilcox_hospital_los$p.value,
+   fisher_icu_death$p.value,
+   fisher_hospital_death$p.value,
+   fisher_pop_recurrence$p.value
+ ) )
+
+# ============================================================
+# MAIN FIGURE 1 — CLINICAL UTILITY CASCADE
+# ============================================================
+clinical_utility_cascade <- tibble(
+ stage = c(
+   "Patients with POP and pre-EOT sampling",
+   "Positive pre-EOT microbiology",
+   "Specific microbiological concordance",
+   "Potentially actionable"
+ ),
+  n = c(
+   n_total,
+   n_positive,
+   n_specific_concordant,
+   n_specific_actionable
+ ) ) |>
+ mutate(
+   percent_total =
+     100 * n / n_total,
+    stage = factor(
+     stage,
+     levels = rev(stage)
+   )
+ )
+fig_clinical_utility <- ggplot(clinical_utility_cascade,
+ aes(x = percent_total, y = stage, fill = stage)) +
+ geom_col(aes(x = 100), fill = "#EDF2F6", width = .65) +
+ geom_col(width = .65) +
+ geom_text(aes(label = sprintf("%d / %d  (%.1f%%)", n, n_total, percent_total)),
+           hjust = 0, nudge_x = 2, size = 3.7, fontface = "bold", colour = "#20364A") +
+ scale_fill_manual(values = setNames(c("#C66A28", "#16857A", "#397FA9", "#234866"),
+                                     levels(clinical_utility_cascade$stage)), guide = "none") +
+ scale_x_continuous(breaks = seq(0,100,25), labels = function(x) paste0(x,"%"),
+                    limits = c(0,132), expand = expansion(mult = 0)) +
+ scale_y_discrete(labels = function(x) vapply(x, function(z) paste(strwrap(z,30),collapse="\n"),character(1))) +
+ labs(x = "Percentage of the full POP cohort", y = NULL) +
+ theme_minimal(base_size = 12) +
+ theme(panel.grid = element_blank(), axis.text.y = element_text(colour="#20364A",face="bold"),
+       axis.text.x = element_text(colour="#526577"), axis.title.x = element_text(margin=margin(t=12)),
+       plot.margin = margin(12,15,12,12))
+
+# ============================================================
+# MAIN FIGURE 2 — RESISTANCE
+# ============================================================
+resistance_figure_data <-
+ resistance_inadequacy |>
+ rowwise() |>
+ mutate(
+   ci_low =
+     100 * binom.test(
+       inadequate,
+       n
+     )$conf.int[1],
+    ci_high =
+     100 * binom.test(
+       inadequate,
+       n
+     )$conf.int[2]
+ ) |>
+ ungroup() |>
+ mutate(
+   resistance = factor(
+     resistance,
+     levels = c(
+       "No reported resistance",
+       "Resistance present"
+     )
+   )
+ )
+fig_resistance_inadequacy <- ggplot(
+ resistance_figure_data,
+ aes(
+   x = resistance,
+   y = inadequacy_percent,
+   fill = resistance
+ ) ) +
+ geom_col(width = 0.48) +
+ scale_fill_manual(values = c("No reported resistance" = "#397FA9", "Resistance present" = "#C66A28"), guide = "none") +
+ geom_errorbar(
+   aes(
+     ymin = ci_low,
+     ymax = ci_high
+   ),
+   colour = "#20364A", linewidth = 0.65,
+   width = 0.12
+ ) +
+ geom_text(
+   aes(
+     y = ci_high,
+     label = paste0(
+       inadequate,
+       "/",
+       n,
+       "\n",
+       sprintf(
+         "%.1f",
+         inadequacy_percent
+       ),
+       "%"
+     )
+   ),
+   vjust = -0.4,
+   colour = "#20364A", fontface = "bold",
+   size = 3.6
+ ) +
+ labs(
+   title =
+     "Empirical antimicrobial inadequacy according to resistance phenotype",
+    subtitle = paste0(
+     "OR ",
+     sprintf(
+       "%.2f",
+       OR_resistance
+     ),
+     " (95% CI ",
+     sprintf(
+       "%.2f",
+       CI_resistance[1]
+     ),
+     "–",
+     sprintf(
+       "%.2f",
+       CI_resistance[2]
+     ),
+     "); P ",
+     format.pval(
+       p_resistance,
+       digits = 3,
+       eps = 0.001
+     )
+   ),
+    x = NULL,
+    y =
+     "Inadequate empirical antimicrobial therapy (%)"
+ ) +
+ theme_classic(
+   base_size = 12
+ ) +
+ theme(
+   plot.title =
+     element_text(
+       face = "bold"
+     )
+ )
+
+# ============================================================
+# MAIN PUBLICATION TABLE
+# ============================================================
+table2_publication <- tibble(
+ Characteristic = c(
+   "Pre-extubation respiratory sampling",
+   "Positive pre-extubation microbiology",
+   "Negative pre-extubation microbiology",
+   "Any microbiological concordance among positive samples",
+   "Specific concordance excluding oropharyngeal flora",
+   "Specific concordance in overall cohort",
+   "Potentially actionable in overall cohort"
+ ),
+  `n/N (%)` = c(
+    paste0(
+     n_performed,
+     "/",
+     n_total,
+     " (",
+     sprintf(
+       "%.1f",
+       100 * n_performed / n_total
+     ),
+     "%)"
+   ),
+    paste0(
+     n_positive,
+     "/",
+     n_performed,
+     " (",
+     sprintf(
+       "%.1f",
+       100 * n_positive / n_performed
+     ),
+     "%)"
+   ),
+    paste0(
+     n_negative,
+     "/",
+     n_performed,
+     " (",
+     sprintf(
+       "%.1f",
+       100 * n_negative / n_performed
+     ),
+     "%)"
+   ),
+    paste0(
+     n_concordant,
+     "/",
+     n_positive,
+     " (",
+     sprintf(
+       "%.1f",
+       100 * n_concordant / n_positive
+     ),
+     "%)"
+   ),
+    paste0(
+     n_specific_concordant,
+     "/",
+     n_positive,
+     " (",
+     sprintf(
+       "%.1f",
+       100 * n_specific_concordant / n_positive
+     ),
+     "%)"
+   ),
+    paste0(
+     n_specific_concordant,
+     "/",
+     n_total,
+     " (",
+     sprintf(
+       "%.1f",
+       100 * n_specific_concordant / n_total
+     ),
+     "%)"
+   ),
+    paste0(
+     n_specific_actionable,
+     "/",
+     n_total,
+     " (",
+     sprintf(
+       "%.1f",
+       pct_specific_actionable_total
+     ),
+     "%)"
+   )
+ ) )
+
+# ============================================================
+# FINAL INTERNAL CONSISTENCY CHECKS
+# ============================================================
+stopifnot(
+ n_total == 122 )
+stopifnot(
+ n_performed ==
+   n_positive + n_negative )
+stopifnot(
+ n_specific_concordant <=
+   n_concordant )
+stopifnot(
+ n_concordant <=
+   n_positive )
+stopifnot(
+ n_specific_actionable <=
+   n_specific_concordant )
+stopifnot(
+ n_adequate +
+   n_inadequate ==
+   n_adequacy_available )
+final_qc <- tibble(
+ Metric = c(
+   "Total cohort",
+   "Pre-EOT sampled",
+   "Pre-EOT positive",
+   "Pre-EOT negative",
+   "Broad concordance",
+   "Specific concordance",
+   "Adequacy evaluable",
+   "Adequate empirical therapy",
+   "Inadequate empirical therapy",
+   "Potentially actionable"
+ ),
+  n = c(
+   n_total,
+   n_performed,
+   n_positive,
+   n_negative,
+   n_concordant,
+   n_specific_concordant,
+   n_adequacy_available,
+   n_adequate,
+   n_inadequate,
+   n_specific_actionable
+ ) )
+
+# Publication presentation only
+stopifnot(n_performed == n_total)
+fmt <- function(k, n) if (n > 0) sprintf("%d/%d (%.1f%%)", k, n, 100*k/n) else "Not evaluable"
+continuous <- function(x) {
+  x <- suppressWarnings(as.numeric(x)); x <- x[!is.na(x)]
+  if (!length(x)) return("Not evaluable")
+  q <- quantile(x, c(.25,.5,.75))
+  sprintf("%.1f [%.1f–%.1f] (n=%d)", q[2],q[1],q[3],length(x))
+}
+binary <- function(x, code=1) fmt(sum(x == code, na.rm=TRUE),sum(!is.na(x)))
+cont_vars <- c("Age, years"="age", "BMI, kg/m²"="bmi", "SOFA score"="score_sofa", "SAPS II"="score_igs2", "Surgery duration, hours"="duree_chirurgie_heure", "Pre-extubation LUS"="lus_preeot")
+bin_vars <- c("Male sex"="sexe", "Hypertension"="hta", "Diabetes"="diabete", "COPD"="bpco", "Immunosuppression"="immunodepression", "Antibiotics within 90 days"="antibiotherapie_moins_90j", "Liver transplantation"="intervention", "Vascular surgery"="type_chirurgie")
+table1_publication <- tibble(Characteristic=c(names(cont_vars),names(bin_vars)), Value=c(vapply(cont_vars,function(v) continuous(data[[v]]),character(1)),vapply(bin_vars,function(v) binary(data[[v]]),character(1))))
+table2_publication <- table2_publication |> mutate(`95% CI`=vapply(seq_len(n()),function(i) {k<-c(n_performed,n_positive,n_negative,n_concordant,n_specific_concordant,n_specific_concordant,n_specific_actionable)[i]; den<-c(n_total,n_performed,n_performed,n_positive,n_positive,n_total,n_total)[i]; z<-100*binom.test(k,den)$conf.int; sprintf("%.1f–%.1f%%",z[1],z[2])},character(1)))
+table3_publication <- tibble(Characteristic=c("Adequate empirical therapy","Inadequate empirical therapy","Missing/non-evaluable adequacy","Adaptation at 48 h","Reported resistance"), Value=c(fmt(n_adequate,n_adequacy_available),fmt(n_inadequate,n_adequacy_available),fmt(n_total-n_adequacy_available,n_total),fmt(n_adapted,n_adaptation_available),fmt(n_resistant,n_resistance_available)))
+# Missing adequacy among specific matches: explicit uncertainty
+n_specific_missing <- sum(preEOT_pos$concordant_specific & is.na(preEOT_pos$adequacy))
+# Export aggregate figures and tables only
+fig_clinical_utility <- fig_clinical_utility + labs(title=NULL,subtitle=NULL)
+fig_resistance_inadequacy <- fig_resistance_inadequacy + labs(title=NULL,subtitle=NULL) + scale_y_continuous(expand=expansion(mult=c(0,.18)))
+fig_micro_sankey <- fig_micro_sankey + labs(title=NULL)
+# Shared publication styling (visual only; no changes to statistical objects).
+theme_tim_publication <- function() {
+  theme_minimal(base_size = 12) + theme(
+    text = element_text(colour = "#20364A"),
+    plot.title = element_text(face = "bold", size = 13, colour = "#20364A"),
+    plot.subtitle = element_text(size = 10, colour = "#526577", margin = margin(b = 12)),
+    axis.text = element_text(colour = "#344C60", size = 10),
+    axis.title = element_text(colour = "#20364A", size = 11),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(colour = "#E3EAF0", linewidth = .35),
+    plot.background = element_rect(fill = "white", colour = NA),
+    panel.background = element_rect(fill = "white", colour = NA),
+    plot.margin = margin(12, 18, 12, 12),
+    legend.position = "bottom"
+  )
+}
+fig_preeot_micro <- fig_preeot_micro + theme_tim_publication() +
+  theme(panel.grid.major.y = element_blank(), axis.title.x = element_text(margin = margin(t = 10)))
+fig_pop_micro <- fig_pop_micro + theme_tim_publication() +
+  theme(panel.grid.major.y = element_blank(), axis.title.x = element_text(margin = margin(t = 10)))
+fig_resistance_inadequacy <- fig_resistance_inadequacy + theme_tim_publication() +
+  theme(panel.grid.major.x = element_blank(), axis.title.y = element_text(margin = margin(r = 10)))
+# Preserve the Sankey's wide margins and existing label placement.
+fig_micro_sankey <- fig_micro_sankey + theme(
+  text = element_text(colour = "#20364A"),
+  axis.text.x = element_text(colour = "#20364A", face = "bold"),
+  plot.subtitle = element_text(colour = "#526577"),
+  legend.text = element_text(colour = "#20364A"),
+  plot.background = element_rect(fill = "white", colour = NA)
+)
+dir.create("publication",showWarnings=FALSE)
+figures_pub <- list(Figure_1=fig_clinical_utility,Figure_2=fig_resistance_inadequacy,Figure_S1=fig_preeot_micro,Figure_S2=fig_pop_micro,Figure_S3=fig_micro_sankey)
+widths <- c(180,180,180,180,360); heights <- c(110,125,135,150,230)
+for(i in seq_along(figures_pub)) {
+  stem <- file.path("publication",names(figures_pub)[i])
+  ggsave(paste0(stem,".pdf"),figures_pub[[i]],width=widths[i],height=heights[i],units="mm",device=grDevices::cairo_pdf)
+  ggsave(paste0(stem,".tiff"),figures_pub[[i]],width=widths[i],height=heights[i],units="mm",dpi=600,compression="lzw")
+}
+for(i in 1:3) write.csv(get(paste0("table",i,"_publication")),file.path("publication",paste0("Table_",i,".csv")),row.names=FALSE,na="")
+
+# ============================================================
+# ADDITIONAL SENSITIVITY ANALYSES (patient-level)
+# ============================================================
+ci_fmt <- function(k,n) {
+ if (!n) return("Not evaluable")
+ z <- 100*binom.test(k,n)$conf.int
+ sprintf("%s [%.1f–%.1f%%]",fmt(k,n),z[1],z[2])
+}
+sets <- function(df, cols) lapply(seq_len(nrow(df)), function(i) {
+ v <- as.numeric(unlist(df[i,cols],use.names=FALSE)); sort(unique(v[!is.na(v) & v>0 & v!=2]))
+})
+pre_cols <- c("pathogene_preeot","pathogene_preeot_2","pathogene_preeot_3")
+pop_cols <- c("pathogene_ppo","pathogene_ppo_2","pathogene_ppo_3")
+sens <- data |> mutate(
+ pre_set=sets(data,pre_cols), pop_set=sets(data,pop_cols),
+ pre_known=!is.na(pathogene_preeot), pop_known=!is.na(pathogene_ppo),
+ specific_pre=lengths(pre_set)>0, specific_pop=lengths(pop_set)>0,
+ overlap=mapply(function(a,b) length(intersect(a,b))>0,pre_set,pop_set),
+ identical_sets=mapply(function(a,b) length(a)>0 && setequal(a,b),pre_set,pop_set),
+ all_pop=mapply(function(a,b) length(b)>0 && all(b %in% a),pre_set,pop_set),
+ delay=as.numeric(as.Date(date_diagnostic_ppo)-as.Date(date_prelevement_preeot)),
+ adequacy_known=!is.na(adequacy),
+ candidate=case_when(!pre_known | !pop_known ~ NA, !overlap ~ FALSE, adequacy_known ~ adequacy==0, TRUE ~ NA),
+ surgery=case_when(is.na(intervention) ~ "Unknown",intervention==1 ~ "Liver transplantation",TRUE ~ "Other surgery"),
+ sampling=case_when(type_prelevement_preeot==1 ~ "Protected distal sampling",type_prelevement_preeot==2 ~ "Tracheal aspiration",type_prelevement_preeot==3 ~ "Sputum",type_prelevement_preeot==4 ~ "BAL",TRUE ~ "Other/unknown"))
+stopifnot(sum(sens$overlap)==n_specific_concordant,sum(sens$candidate %in% TRUE)==n_specific_actionable)
+sp <- sens |> filter(preeot_positive,pre_known,pop_known)
+missing_summary <- tibble(Variable=c("Empirical adequacy","Pre-EOT primary microbiology code","POP primary microbiology code","Sampling-to-POP delay","Resistance","48-h adaptation"),Missing=c(sum(!sens$adequacy_known),sum(!sens$pre_known),sum(!sens$pop_known),sum(is.na(sens$delay)),sum(is.na(sens$any_resistance)),sum(is.na(sens$adaptation_48h)))) |> mutate(`Missing n/N (%)`=vapply(Missing,function(k)fmt(k,n_total),character(1)))
+miss_groups <- split(sens,sens$adequacy_known)
+smd <- function(a,b) {a<-a[!is.na(a)];b<-b[!is.na(b)];if(length(a)<2 || length(b)<2)return(NA_real_); den<-sqrt((var(a)+var(b))/2);if(den==0)return(if(mean(a)==mean(b))0 else NA_real_);(mean(a)-mean(b))/den}
+miss_vars <- list(Age=sens$age,`SAPS II`=sens$score_igs2,SOFA=sens$score_sofa,`Liver transplantation`=as.numeric(sens$intervention==1),`Prior antibiotics (90 days)`=sens$antibiotherapie_moins_90j,`Positive pre-EOT`=as.numeric(sens$preeot_positive),`Specific overlap`=as.numeric(sens$overlap),`Delay, days`=sens$delay,Resistance=sens$any_resistance,`ICU death`=sens$dc_reanimation)
+missing_compare <- bind_rows(lapply(names(miss_vars),function(v){x<-suppressWarnings(as.numeric(miss_vars[[v]]));a<-x[sens$adequacy_known];b<-x[!sens$adequacy_known]; f<-if(v %in% c("Age","SAPS II","SOFA","Delay, days")) continuous else binary;tibble(Variable=v,Evaluable=f(a),`Non-evaluable`=f(b),SMD=smd(a,b))}))
+unknown_candidate <- sum(is.na(sens$candidate))
+action_sensitivity <- tibble(Scenario=c("Observed candidate proportion","Evaluable composite only","All unknown composite outcomes negative","All unknown composite outcomes positive"),k=c(n_specific_actionable,n_specific_actionable,n_specific_actionable,n_specific_actionable+unknown_candidate),N=c(n_total,n_total-unknown_candidate,n_total,n_total)) |> mutate(Estimate=mapply(fmt,k,N))
+concordance_sensitivity <- tibble(Definition=c("Any overlap, flora included (original)","Specific overlap (original)","Specific overlap, specific pre-EOT positive","Identical nonempty specific sets","All specific POP organisms present pre-EOT","All specific POP organisms present, specific POP positive"),k=c(n_concordant,n_specific_concordant,sum(sp$overlap & sp$specific_pre),sum(sp$identical_sets),sum(sp$all_pop),sum(sp$all_pop)),N=c(n_positive,n_positive,sum(sp$specific_pre),nrow(sp),nrow(sp),sum(sp$specific_pop))) |> mutate(`Estimate [95% CI]`=mapply(ci_fmt,k,N))
+# Permute whole POP profiles among positive pre-EOT patients with known primary codes.
+match_matrix <- outer(seq_len(nrow(sp)),seq_len(nrow(sp)),Vectorize(function(i,j) length(intersect(sp$pre_set[[i]],sp$pop_set[[j]]))>0))
+set.seed(20261126)
+B <- 10000L
+obs_perm <- sum(diag(match_matrix))
+perm_counts <- replicate(B,sum(match_matrix[cbind(seq_len(nrow(sp)),sample.int(nrow(sp)))]))
+perm_p <- (1+sum(perm_counts>=obs_perm))/(B+1)
+perm_expected <- mean(perm_counts)/nrow(sp)*100
+fig_perm <- ggplot(tibble(Concordance=100*perm_counts/nrow(sp)),aes(Concordance))+geom_histogram(binwidth=100/nrow(sp),boundary=-50/nrow(sp),fill="#397FA9",colour="white",linewidth=.25)+geom_vline(xintercept=100*obs_perm/nrow(sp),colour="#C66A28",linewidth=1.15,linetype="dashed")+labs(x="Specific concordance (%)",y="Permutations",subtitle=sprintf("Observed %.1f%%; expected %.1f%%; Monte Carlo P = %.4g",100*obs_perm/nrow(sp),perm_expected,perm_p))+theme_classic(base_size=12)
+# Calendar-day delay; exclude negative or missing intervals from this analysis only.
+time_data <- sp |> filter(!is.na(delay),delay>=0) |> mutate(window=cut(delay,c(-Inf,2,5,Inf),labels=c("0–2 days","3–5 days",">5 days")))
+time_table <- time_data |> group_by(window,.drop=FALSE) |> summarise(k=sum(overlap),N=n(),.groups="drop") |> mutate(`Estimate [95% CI]`=mapply(ci_fmt,k,N))
+time_fit <- glm(overlap~delay,data=time_data,family=binomial())
+time_beta <- coef(summary(time_fit))["delay",]
+time_or <- exp(time_beta[1]); time_ci <- exp(time_beta[1]+c(-1,1)*1.96*time_beta[2])
+time_grid <- tibble(delay=seq(min(time_data$delay),max(time_data$delay),length.out=100))
+pr <- predict(time_fit,newdata=time_grid,type="link",se.fit=TRUE)
+time_grid <- time_grid |> mutate(prob=plogis(pr$fit),lo=plogis(pr$fit-1.96*pr$se.fit),hi=plogis(pr$fit+1.96*pr$se.fit))
+fig_time <- ggplot(time_grid,aes(delay,prob))+geom_ribbon(aes(ymin=lo,ymax=hi),fill="#B9DDD9",alpha=.75)+geom_line(colour="#16857A",linewidth=1.2)+geom_rug(data=time_data,aes(x=delay),inherit.aes=FALSE,alpha=.45,colour="#397FA9")+scale_y_continuous(labels=scales::label_percent(),limits=c(0,1))+labs(x="Sampling-to-POP interval (calendar days)",y="Estimated probability of specific overlap",subtitle="Exploratory logistic model; pointwise 95% Wald confidence band")+theme_classic(base_size=12)
+fig_perm <- fig_perm + theme_tim_publication() + theme(panel.grid.major.x = element_blank())
+fig_time <- fig_time + theme_tim_publication() + theme(panel.grid.major.x = element_blank())
+subgroup_table <- bind_rows(lapply(c("surgery","sampling"),function(v) sens |> group_by(Group=.data[[v]]) |> summarise(N=n(),positive=sum(preeot_positive),specific=sum(overlap),adequacy_n=sum(adequacy_known),inadequate=sum(adequacy==0,na.rm=TRUE),candidates=sum(candidate %in% TRUE),unknown=sum(is.na(candidate)),.groups="drop") |> mutate(Stratum=v,Yield=mapply(ci_fmt,positive,N),`Specific overlap among positives`=mapply(ci_fmt,specific,positive),Inadequacy=mapply(ci_fmt,inadequate,adequacy_n),`Observed candidates`=mapply(ci_fmt,candidates,N)) |> select(Stratum,Group,N,Yield,`Specific overlap among positives`,Inadequacy,`Observed candidates`,unknown)))
+# Aggregate-only export; no patient records or dates.
+extra_tables <- list(S4=missing_summary,S5=missing_compare,S6=action_sensitivity,S7=concordance_sensitivity,S8=time_table,S9=subgroup_table)
+for(nm in names(extra_tables)) write.csv(extra_tables[[nm]],file.path("publication",paste0("Table_",nm,".csv")),row.names=FALSE,na="")
+for(nm in c("S4","S5")) {g<-if(nm=="S4")fig_perm else fig_time; stem<-file.path("publication",paste0("Figure_",nm));ggsave(paste0(stem,".pdf"),g,width=180,height=115,units="mm",device=grDevices::cairo_pdf);ggsave(paste0(stem,".tiff"),g,width=180,height=115,units="mm",dpi=600,compression="lzw")}
+
+# Exploratory adjusted analysis: prespecified here for the reanalysis, not the original protocol.
+if (!requireNamespace("logistf", quietly=TRUE)) stop("Install logistf: install.packages('logistf')")
+model_data <- data |> transmute(inadequate=1-adequacy, resistance=any_resistance,
+ prior_antibiotics=suppressWarnings(as.numeric(antibiotherapie_moins_90j)),
+ liver_transplant=as.integer(intervention==1)) |> filter(if_all(everything(), ~ !is.na(.x)))
+stopifnot(all(model_data$prior_antibiotics %in% 0:1))
+fit_adjusted <- logistf::logistf(inadequate ~ resistance + prior_antibiotics + liver_transplant,
+ data=model_data, pl=TRUE)
+model_terms <- c("resistance","prior_antibiotics","liver_transplant")
+model_table <- tibble(Covariate=c("Reported resistance at POP diagnosis","Antibiotics within 90 days before surgery","Liver transplantation"),
+ `Adjusted OR`=exp(fit_adjusted$coefficients[model_terms]),
+ `95% CI lower`=exp(fit_adjusted$ci.lower[model_terms]),
+ `95% CI upper`=exp(fit_adjusted$ci.upper[model_terms]),
+ `P value`=fit_adjusted$prob[model_terms]) |> mutate(across(where(is.numeric), ~ signif(.x,3)))
+
+# Downloadable aggregate tables: PDF, paginated, with wrapped cells; no LaTeX required.
+if (!requireNamespace("gridExtra", quietly=TRUE)) stop("Install gridExtra: install.packages('gridExtra')")
+export_table_pdf <- function(tbl, stem, title) {
+ tbl <- as.data.frame(tbl)
+ # Landscape for wide tables; wrap long text instead of shrinking it indefinitely.
+ wide <- ncol(tbl)>5
+ page_w <- if(wide) 16.5 else 11.7
+ page_h <- 8.3
+ chars <- max(13, floor((page_w*12)/max(1,ncol(tbl))))
+ wrap_cell <- function(x) vapply(as.character(x),function(z) if(is.na(z)) "—" else paste(strwrap(z,width=chars),collapse="\n"),character(1))
+ tbl[] <- lapply(tbl,wrap_cell); names(tbl) <- wrap_cell(names(tbl))
+ row_lines <- if(nrow(tbl)) apply(tbl,1,function(z) max(lengths(strsplit(z,"\n",fixed=TRUE)))) else integer()
+ pages <- list(); start <- 1L
+ while(start <= nrow(tbl)) {
+   end <- start; used <- row_lines[start]+1
+   while(end<nrow(tbl) && used+row_lines[end+1]+1 <= 24) {end<-end+1L;used<-used+row_lines[end]+1}
+   pages[[length(pages)+1L]] <- tbl[start:end,,drop=FALSE];start<-end+1L
+ }
+ if(!length(pages)) pages <- list(tbl)
+ grDevices::cairo_pdf(file.path("publication",paste0(stem,".pdf")),width=page_w,height=page_h)
+ on.exit(grDevices::dev.off(),add=TRUE)
+ for(i in seq_along(pages)) {
+   g <- gridExtra::tableGrob(pages[[i]],rows=NULL,theme=gridExtra::ttheme_minimal(base_size=9,
+     core=list(fg_params=list(hjust=0,x=.03),bg_params=list(fill=c("#F0F5F8","white"),col=NA)),
+     colhead=list(fg_params=list(col="white",fontface="bold"),bg_params=list(fill="#234866",col=NA))))
+   g$widths <- grid::unit(rep(1,ncol(tbl)),"null")
+   grid::grid.newpage()
+   grid::pushViewport(grid::viewport(width=.94,height=.92,layout=grid::grid.layout(3,1,heights=grid::unit.c(grid::unit(.65,"in"),grid::unit(1,"null"),grid::unit(.3,"in")))))
+   grid::grid.text(paste(strwrap(title,width=100),collapse="\n"),x=0,just="left",gp=grid::gpar(fontsize=13,fontface="bold",col="#234866"),vp=grid::viewport(layout.pos.row=1))
+   grid::pushViewport(grid::viewport(layout.pos.row=2)); grid::grid.draw(g);grid::popViewport()
+   grid::grid.text(sprintf("TIM POP | %s | Page %d/%d",stem,i,length(pages)),x=0,just="left",gp=grid::gpar(fontsize=9,col="#526577"),vp=grid::viewport(layout.pos.row=3));grid::popViewport()
+ }
+}
+all_tables <- c(list(`1`=table1_publication,`2`=table2_publication,`3`=table3_publication,
+ `3b`=adequacy_by_preeot |> transmute(`Pre-extubation culture`=if_else(preeot_positive,"Positive","Negative"),`Inadequate therapy`=sprintf("%d/%d (%.1f%%)",inadequate,n,inadequate_percent)),
+ S1=resistance_summary,S2a=adaptation_by_preeot |> mutate(preeot_positive=if_else(preeot_positive,"Positive","Negative")),
+ S2b=adaptation_by_specific_concordance |> mutate(concordant_specific=if_else(concordant_specific,"Yes","No")),
+ S3a=outcome_publication,S3b=outcome_tests |> mutate(P_value=signif(P_value,3))),extra_tables,list(S10=model_table))
+table_titles <- c(`1`="Patient characteristics",`2`="Microbiological findings",`3`="Antimicrobial management",`3b`="Adequacy by pre-extubation positivity",S1="Resistance phenotypes",S2a="Adaptation by pre-extubation positivity",S2b="Adaptation by specific concordance",S3a="Clinical outcomes",S3b="Exploratory unadjusted comparisons",S4="Availability of analytical variables",S5="Characteristics by adequacy availability",S6="Sensitivity of candidate actionability",S7="Alternative concordance definitions",S8="Concordance by sampling-to-POP interval",S9="Sensitivity by surgery and sampling technique",S10="Exploratory adjusted association with empirical inadequacy")
+all_tables$S4 <- missing_summary |> select(-Missing)
+all_tables$S5 <- missing_compare |> mutate(SMD=round(SMD,2))
+for(nm in names(all_tables)) {
+ stem <- paste0("Table_",nm)
+ write.csv(all_tables[[nm]],file.path("publication",paste0(stem,".csv")),row.names=FALSE,na="")
+ export_table_pdf(all_tables[[nm]],stem,paste0("Table ",nm,". ",table_titles[[nm]]))
+}
+
+```
+
+# Main manuscript
+
+## Table 1 — Patient characteristics
+
+```{r}
+knitr::kable(table1_publication,caption="Table 1. Demographic, clinical and surgical characteristics of the study cohort.")
+```
+
+[Download Table 1 (PDF)](publication/Table_1.pdf) · [CSV](publication/Table_1.csv)
+
+Continuous variables: median [IQR]; categorical variables: n/N (%), with available-case denominators.
+
+## Figure 1 — Clinical utility cascade
+
+```{r}
+#| fig-width: 9
+#| fig-height: 5.5
+fig_clinical_utility
+```
+
+[PDF vector](publication/Figure_1.pdf) · [TIFF 600 dpi](publication/Figure_1.tiff)
+
+**Figure 1.** Patient-level cascade; percentages use the full cohort denominator. Among `r n_total` sampled POP cases, `r fmt(n_positive,n_performed)` had positive pre-extubation microbiology. Specific overlap was present in `r fmt(n_specific_concordant,n_positive)` positive samples. Specific overlap with inadequate empirical therapy was documented in `r fmt(n_specific_actionable,n_total)` of the cohort. This is a candidate opportunity, not demonstrated preventability. Adequacy was missing in `r n_specific_missing` specifically concordant cases.
+
+## Table 2 — Microbiological findings
+
+```{r}
+knitr::kable(table2_publication,caption="Table 2. Microbiological yield, concordance and observed candidate actionability.")
+```
+
+[Download Table 2 (PDF)](publication/Table_2.pdf) · [CSV](publication/Table_2.csv)
+
+Exact binomial confidence intervals. Specific concordance excludes oropharyngeal flora from the intersection, not from the positive-sample denominator.
+
+## Table 3 — Antimicrobial management
+
+```{r}
+knitr::kable(table3_publication,caption="Table 3. Empirical antimicrobial adequacy, adaptation and resistance.")
+knitr::kable(adequacy_by_preeot |> transmute(`Pre-extubation culture`=if_else(preeot_positive,"Positive","Negative"),`Inadequate therapy`=sprintf("%d/%d (%.1f%%)",inadequate,n,inadequate_percent)))
+```
+
+[Download Table 3 (PDF)](publication/Table_3.pdf) · [CSV](publication/Table_3.csv) · [Adequacy by positivity (PDF)](publication/Table_3b.pdf) · [CSV](publication/Table_3b.csv)
+
+Empirical therapy was inadequate in `r fmt(n_inadequate,n_adequacy_available)` evaluable cases; adaptation was recorded in `r fmt(n_adapted,n_adaptation_available)`. Adaptation does not necessarily indicate de-escalation.
+
+## Figure 2 — Resistance and empirical inadequacy
+
+```{r}
+#| fig-width: 8
+#| fig-height: 5.5
+fig_resistance_inadequacy
+```
+
+[PDF vector](publication/Figure_2.pdf) · [TIFF 600 dpi](publication/Figure_2.tiff)
+
+**Figure 2.** Proportion of inadequate empirical therapy by recorded resistance status, with exact binomial 95% confidence intervals. Unadjusted Fisher exact OR `r sprintf("%.2f",OR_resistance)` (95% CI `r sprintf("%.2f–%.2f",CI_resistance[1],CI_resistance[2])`; P = `r format.pval(p_resistance,digits=3)`). Resistance at POP diagnosis is not a prospective predictor.
+
+# Supplementary material
+
+## Figure S1 — Pre-extubation microbiology
+
+```{r}
+fig_preeot_micro
+```
+
+[PDF](publication/Figure_S1.pdf) · [TIFF](publication/Figure_S1.tiff)
+
+**Figure S1.** Organism occurrences in pre-extubation samples. Polymicrobial samples may contribute multiple organisms; counts are not mutually exclusive patient proportions.
+
+## Figure S2 — POP microbiology
+
+```{r}
+fig_pop_micro
+```
+
+[PDF](publication/Figure_S2.pdf) · [TIFF](publication/Figure_S2.tiff)
+
+**Figure S2.** Organism occurrences at POP diagnosis. Counts describe documented ecology, not organism-specific incidence.
+
+## Figure S3 — Microbiological co-occurrences
+
+```{r}
+#| fig-width: 16
+#| fig-height: 10
+fig_micro_sankey
+```
+
+[PDF](publication/Figure_S3.pdf) · [TIFF](publication/Figure_S3.tiff)
+
+**Figure S3.** Flows represent pairwise co-occurrences within patients with organisms at both time points, not proven organism transitions or unique patient counts. Polymicrobial samples contribute multiple pairs. Colour denotes patient-level specific overlap.
+
+## Table S1 — Resistance phenotypes
+
+```{r}
+knitr::kable(resistance_summary,caption="Table S1. Recorded antimicrobial resistance phenotypes.")
+```
+
+[Table S1 (PDF)](publication/Table_S1.pdf) · [CSV](publication/Table_S1.csv)
+
+Recorded phenotypes describe resistance at POP diagnosis; they do not establish prior susceptibility or availability to clinicians.
+
+## Table S2 — Adaptation at 48 hours
+
+```{r}
+knitr::kable(adaptation_by_preeot |> mutate(preeot_positive=if_else(preeot_positive,"Positive","Negative")),caption="Table S2a. Adaptation by pre-extubation positivity.")
+knitr::kable(adaptation_by_specific_concordance |> mutate(concordant_specific=if_else(concordant_specific,"Yes","No")),caption="Table S2b. Adaptation by specific concordance among positive samples.")
+```
+
+[Table S2a (PDF)](publication/Table_S2a.pdf) · [CSV](publication/Table_S2a.csv) · [Table S2b (PDF)](publication/Table_S2b.pdf) · [CSV](publication/Table_S2b.csv)
+
+The tables describe recorded adaptation by pre-EOT positivity and specific concordance. They cannot establish that prior sampling caused a treatment change.
+
+## Table S3 — Clinical outcomes (exploratory)
+
+```{r}
+knitr::kable(outcome_publication,caption="Table S3a. Clinical outcomes by empirical adequacy.")
+knitr::kable(outcome_tests,digits=3,caption="Table S3b. Exploratory unadjusted comparisons.")
+```
+
+[Table S3a (PDF)](publication/Table_S3a.pdf) · [CSV](publication/Table_S3a.csv) · [Table S3b (PDF)](publication/Table_S3b.pdf) · [CSV](publication/Table_S3b.csv)
+
+Unadjusted exploratory comparisons; no multiplicity correction. Event counts are not rates.
+
+
+## Table S4 — Availability of analytical variables
+
+```{r}
+knitr::kable(missing_summary |> select(-Missing),caption="Table S4. Missing or non-evaluable analytical variables in the full cohort.")
+```
+
+[Table S4 (PDF)](publication/Table_S4.pdf) · [CSV](publication/Table_S4.csv)
+
+Empirical adequacy was unavailable for `r fmt(n_total-n_adequacy_available,n_total)` patients. Blank entries and non-binary responses are treated as non-evaluable; the reasons require clinical review. Structural non-evaluability is not assumed to be random missingness.
+
+## Table S5 — Characteristics by adequacy availability
+
+```{r}
+knitr::kable(missing_compare,digits=2,caption="Table S5. Available-case characteristics by availability of empirical adequacy.")
+```
+
+[Table S5 (PDF)](publication/Table_S5.pdf) · [CSV](publication/Table_S5.csv)
+
+Values are median [IQR] or n/N (%). SMD is the signed standardized mean difference (evaluable minus non-evaluable), using the pooled within-group variance. Differences may indicate selection into the evaluable subset; they do not establish the missingness mechanism.
+
+## Table S6 — Sensitivity of candidate actionability
+
+```{r}
+knitr::kable(action_sensitivity,caption="Table S6. Observed candidate proportion and extreme assumptions for unknown composite outcomes.")
+```
+
+[Table S6 (PDF)](publication/Table_S6.pdf) · [CSV](publication/Table_S6.csv)
+
+The composite is specific overlap plus inadequate empirical therapy. It is unknown in `r unknown_candidate` patients; absence of overlap makes the composite negative even when adequacy is unavailable. Extreme scenarios bound the composite under the recorded microbiology, not the true clinical benefit. Result availability, susceptibility and coverage of the matching organism require chart adjudication.
+
+## Table S7 — Alternative concordance definitions
+
+```{r}
+knitr::kable(concordance_sensitivity,caption="Table S7. Patient-level concordance under alternative organism-set definitions; exact binomial 95% confidence intervals.")
+```
+
+[Table S7 (PDF)](publication/Table_S7.pdf) · [CSV](publication/Table_S7.csv)
+
+The main definition requires at least one shared specific organism. More stringent definitions distinguish identical nonempty profiles from coverage of all documented specific POP organisms. Empty profiles never count as matches. These are species-level comparisons, not evidence of strain identity or antibiotic susceptibility.
+
+## Figure S4 — Concordance expected under random pairing
+
+```{r}
+#| fig-width: 8
+#| fig-height: 5
+fig_perm
+```
+
+**Figure S4.** Distribution of specific concordance after 10,000 permutations of complete POP organism profiles among positive pre-EOT patients with known primary microbiology codes. The vertical line denotes observed concordance. Observed concordance was `r fmt(obs_perm,nrow(sp))`, compared with a mean of `r sprintf("%.1f%%",perm_expected)` under random pairing (one-sided Monte Carlo P = `r format.pval(perm_p,digits=3)`). Exchangeability is assumed; shared surgery type, antibiotic exposure or calendar-period ecology may explain part of the association. This is exploratory and does not prove bacterial persistence.
+
+[PDF](publication/Figure_S4.pdf) · [TIFF](publication/Figure_S4.tiff)
+
+## Table S8 — Concordance by sampling-to-POP interval
+
+```{r}
+knitr::kable(time_table,caption="Table S8. Specific overlap by calendar-day interval from pre-extubation sampling to POP diagnosis.")
+```
+
+[Table S8 (PDF)](publication/Table_S8.pdf) · [CSV](publication/Table_S8.csv)
+
+The categories follow the initial manuscript and are descriptive. `r nrow(sp)-nrow(time_data)` positive-sample patients were excluded from this temporal analysis because of missing or negative intervals. This interval is not necessarily the interval from extubation to POP.
+
+## Figure S5 — Temporal association with specific concordance
+
+```{r}
+#| fig-width: 8
+#| fig-height: 5
+fig_time
+```
+
+**Figure S5.** Estimated probability of specific overlap according to sampling-to-POP interval. Shading denotes pointwise 95% Wald confidence intervals; rug marks show observed intervals. The exploratory unadjusted logistic model estimated an OR per additional calendar day of `r sprintf("%.2f",time_or)` (95% CI `r sprintf("%.2f–%.2f",time_ci[1],time_ci[2])`; P = `r format.pval(time_beta[4],digits=3)`). The model assumes linearity on the log-odds scale; no optimal threshold or validated predictive performance is claimed.
+
+[PDF](publication/Figure_S5.pdf) · [TIFF](publication/Figure_S5.tiff)
+
+## Table S9 — Sensitivity by surgery and sampling technique
+
+```{r}
+knitr::kable(subgroup_table,caption="Table S9. Descriptive microbiological and therapeutic findings by surgical and sampling strata; exact binomial 95% confidence intervals.")
+```
+
+[Table S9 (PDF)](publication/Table_S9.pdf) · [CSV](publication/Table_S9.csv)
+
+Denominators differ by endpoint: all patients for yield and observed candidates, positive samples for specific overlap, evaluable adequacy for inadequacy. The unknown column counts non-evaluable composite outcomes. No interaction tests are performed because of sparse strata; these comparisons are not adjusted for case mix.
+
+## Table S10 — Exploratory multivariable analysis
+
+```{r}
+knitr::kable(model_table,caption="Table S10. Firth penalised logistic regression for empirical antimicrobial inadequacy; adjusted odds ratios and profile penalised likelihood 95% confidence intervals.")
+```
+
+[Table S10 (PDF)](publication/Table_S10.pdf) · [CSV](publication/Table_S10.csv)
+
+The complete-case model included `r nrow(model_data)` patients and `r sum(model_data$inadequate)` inadequacy events. Covariates were selected on clinical grounds for this exploratory reanalysis: reported resistance, antibiotic exposure within 90 days before surgery and liver transplantation. The adjusted OR for resistance was `r sprintf("%.2f",model_table[["Adjusted OR"]][1])` (95% CI `r sprintf("%.2f–%.2f",model_table[["95% CI lower"]][1],model_table[["95% CI upper"]][1])`). Penalisation reduces small-sample bias but does not eliminate imprecision, residual confounding or selection bias. Resistance at POP diagnosis is partly linked to the definition of adequacy; this is neither a causal model nor a prospective prediction model.
+
+## Clinical adjudication required before submission
+
+The `r n_specific_actionable` observed candidate cases require review of microbiological result release time, susceptibility availability, whether the shared organism was uncovered by initial therapy, and whether a feasible alternative regimen would cover all relevant pathogens. These items cannot be inferred from sampling dates or species codes. Record them in a secure clinical workspace, not the public HTML. Report aggregate adjudication results only after verification.
+
+## Statistical interpretation and limitations
+
+All additional analyses are exploratory and were developed after inspection of the original results. No multiplicity-adjusted confirmatory claims are made. This retrospective cohort contains only sampled patients who developed POP; it cannot estimate POP incidence, diagnostic performance for incident POP, or the causal benefit of routine sampling. The resistance association is unadjusted and partly reflects the definition of adequacy. A parsimonious exploratory Firth model is reported in Table S10; the small event count limits precision and adjustment for additional covariates. No post-hoc power calculation is used.
+
+# Technical audit
+
+```{r}
+knitr::kable(qc_population)
+knitr::kable(final_qc)
+```
+
+Patient-level records and dates are deliberately not displayed or exported. Screening and exclusion counts must be reconciled before creating a recruitment flowchart.

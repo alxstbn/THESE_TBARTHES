@@ -1,0 +1,6 @@
+"Outcome","P_value"
+"ICU length of stay",0.364
+"Hospital length of stay",0.114
+"ICU mortality",0.294
+"Hospital mortality",0.348
+"POP recurrence",0.802

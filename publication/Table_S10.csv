@@ -1,0 +1,4 @@
+"Covariate","Adjusted OR","95% CI lower","95% CI upper","P value"
+"Reported resistance at POP diagnosis",9.33,3.32,29.4,1.41e-05
+"Antibiotics within 90 days before surgery",0.89,0.256,3.02,0.851
+"Liver transplantation",0.974,0.291,3.21,0.965

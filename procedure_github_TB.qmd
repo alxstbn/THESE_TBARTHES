@@ -1,0 +1,538 @@
+---
+title: "SFTJ — Procédure de publication GitHub Pages"
+subtitle: "Rappel Render → index.html → GitHub Desktop"
+author: "Alexandre Sitbon"
+date: last-modified
+lang: fr
+
+format:
+  html:
+    theme: litera
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    number-sections: true
+    smooth-scroll: true
+    embed-resources: true
+---
+
+# Objectif
+
+Cette procédure décrit la méthode utilisée pour publier et mettre à jour le rapport Quarto du projet **TIM POP** sur GitHub Pages.
+
+Le projet local est situé ici :
+
+``` text
+/Users/Alexandre/Desktop/these_tim_barthes/TIM_POP_PreEOT_ACCPM
+```
+
+Le dépôt GitHub associé est :
+
+``` text
+THESE_TBARTHES
+```
+
+Le rapport principal est :
+
+``` text
+TIM_POP_ACCPM_analysis_AS.qmd
+```
+
+Le site GitHub Pages est publié à l'adresse :
+
+``` text
+https://alxstbn.github.io/THESE_TBARTHES/
+```
+
+------------------------------------------------------------------------
+
+# 1. Principe général
+
+Le fonctionnement est simple :
+
+1.  modifier le fichier `.qmd` dans RStudio ;
+2.  effectuer un Render Quarto ;
+3.  vérifier le fichier HTML obtenu localement ;
+4.  copier ce HTML vers `index.html` ;
+5.  publier les modifications avec GitHub Desktop ;
+6.  GitHub Pages actualise automatiquement le site.
+
+Le fichier Excel contenant les données patients reste **strictement local**.
+
+------------------------------------------------------------------------
+
+# 2. Fichiers importants
+
+## Fichier d'analyse
+
+``` text
+TIM_POP_ACCPM_analysis_AS.qmd
+```
+
+C'est le fichier source principal.
+
+Toutes les modifications de l'analyse doivent être effectuées ici.
+
+------------------------------------------------------------------------
+
+## Base de données FINAL
+
+``` text
+data/TIM_POP_database_FINAL.xlsx
+```
+
+Cette base reste locale et ne doit jamais être publiée sur GitHub.
+
+------------------------------------------------------------------------
+
+## HTML généré par Quarto
+
+Après Render :
+
+``` text
+TIM_POP_ACCPM_analysis_AS.html
+```
+
+C'est le rapport HTML complet produit par Quarto.
+
+------------------------------------------------------------------------
+
+## Page publiée par GitHub Pages
+
+GitHub Pages utilise :
+
+``` text
+index.html
+```
+
+`index.html` doit donc être une copie du dernier HTML Quarto validé.
+
+------------------------------------------------------------------------
+
+# 3. Vérifier le YAML du QMD
+
+Le fichier `TIM_POP_ACCPM_analysis_AS.qmd` doit notamment contenir :
+
+``` yaml
+format:
+  html:
+    theme: litera
+    toc: true
+    toc-location: left
+    toc-depth: 2
+    number-sections: false
+    smooth-scroll: true
+    code-fold: true
+    code-summary: "Show analysis code"
+    code-tools: false
+    embed-resources: true
+    df-print: paged
+```
+
+Le paramètre essentiel pour GitHub Pages est :
+
+``` yaml
+embed-resources: true
+```
+
+Il permet de générer un fichier HTML autonome contenant les ressources nécessaires à son affichage.
+
+------------------------------------------------------------------------
+
+# 4. Routine après chaque modification
+
+## Étape 1 — Modifier le QMD
+
+Dans RStudio, travailler normalement dans :
+
+``` text
+TIM_POP_ACCPM_analysis_AS.qmd
+```
+
+Enregistrer les modifications.
+
+------------------------------------------------------------------------
+
+## Étape 2 — Render complet
+
+Dans le Terminal de RStudio :
+
+``` bash
+quarto render TIM_POP_ACCPM_analysis_AS.qmd --no-cache
+```
+
+Le fichier suivant doit être créé ou actualisé :
+
+``` text
+TIM_POP_ACCPM_analysis_AS.html
+```
+
+------------------------------------------------------------------------
+
+## Étape 3 — Vérifier le HTML local
+
+Avant toute publication :
+
+``` bash
+open TIM_POP_ACCPM_analysis_AS.html
+```
+
+Vérifier notamment :
+
+- thème Litera ;
+- sommaire à gauche ;
+- Executive summary ;
+- résultats principaux ;
+- figures principales ;
+- Sankey plot ;
+- analyses secondaires ;
+- figures supplémentaires ;
+- audit technique.
+
+**Ne pas publier si ce fichier n'est pas correct.**
+
+------------------------------------------------------------------------
+
+## Étape 4 — Créer le nouvel `index.html`
+
+Une fois le HTML vérifié :
+
+``` bash
+cp -f TIM_POP_ACCPM_analysis_AS.html index.html
+```
+
+Le fichier :
+
+``` text
+index.html
+```
+
+devient alors la copie exacte du rapport Quarto.
+
+------------------------------------------------------------------------
+
+## Étape 5 — Vérifier que les deux HTML sont identiques
+
+Dans le Terminal :
+
+``` bash
+cmp TIM_POP_ACCPM_analysis_AS.html index.html && echo "HTML OK — fichiers identiques"
+```
+
+Résultat attendu :
+
+``` text
+HTML OK — fichiers identiques
+```
+
+------------------------------------------------------------------------
+
+# 5. Vérification de sécurité avant publication
+
+Avant chaque Push :
+
+``` bash
+git status
+```
+
+Vérifier qu'aucune donnée clinique n'est sur le point d'être publiée.
+
+En particulier, ne jamais publier :
+
+``` text
+data/
+*.xlsx
+*.csv
+*.rds
+.RData
+.Rhistory
+```
+
+Le fichier suivant ne doit **jamais apparaître parmi les fichiers envoyés sur GitHub** :
+
+``` text
+TIM_POP_database_FINAL.xlsx
+```
+
+------------------------------------------------------------------------
+
+# 6. `.gitignore`
+
+Le fichier `.gitignore` doit notamment contenir :
+
+``` text
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+.DS_Store
+
+data/
+*.xlsx
+*.csv
+*.rds
+```
+
+Cela permet d'éviter l'envoi accidentel de la base clinique.
+
+------------------------------------------------------------------------
+
+# 7. Publication avec GitHub Desktop
+
+Ouvrir **GitHub Desktop**.
+
+Vérifier en haut que le dépôt sélectionné est :
+
+``` text
+THESE_TBARTHES
+```
+
+et que son emplacement local est :
+
+``` text
+/Users/Alexandre/Desktop/these_tim_barthes/TIM_POP_PreEOT_ACCPM
+```
+
+GitHub Desktop doit montrer les fichiers modifiés, notamment :
+
+``` text
+TIM_POP_ACCPM_analysis_AS.qmd
+index.html
+```
+
+et éventuellement les figures suivies par Git.
+
+------------------------------------------------------------------------
+
+## Commit
+
+Dans le champ **Summary**, utiliser par exemple :
+
+``` text
+Update final TIM POP analysis
+```
+
+Puis cliquer :
+
+``` text
+Commit to main
+```
+
+------------------------------------------------------------------------
+
+## Push
+
+Après le Commit :
+
+``` text
+Push origin
+```
+
+Les nouveaux fichiers sont alors envoyés sur GitHub.
+
+------------------------------------------------------------------------
+
+# 8. Vérifier GitHub Pages
+
+Le site est disponible ici :
+
+``` text
+https://alxstbn.github.io/THESE_TBARTHES/
+```
+
+Attendre éventuellement une à deux minutes après le Push.
+
+Si l'ancienne version reste affichée, effectuer un rafraîchissement forcé :
+
+``` text
+Cmd + Shift + R
+```
+
+------------------------------------------------------------------------
+
+# 9. Routine courte à retenir
+
+Après chaque modification du QMD :
+
+``` text
+1. Modifier et enregistrer le QMD
+2. Render
+3. Vérifier le HTML local
+4. Copier le HTML vers index.html
+5. Vérifier git status
+6. GitHub Desktop → Commit to main
+7. GitHub Desktop → Push origin
+8. Vérifier GitHub Pages
+```
+
+------------------------------------------------------------------------
+
+# 10. Commandes Terminal essentielles
+
+## Render
+
+``` bash
+quarto render TIM_POP_ACCPM_analysis_AS.qmd --no-cache
+```
+
+## Ouvrir le résultat
+
+``` bash
+open TIM_POP_ACCPM_analysis_AS.html
+```
+
+## Copier vers GitHub Pages
+
+``` bash
+cp -f TIM_POP_ACCPM_analysis_AS.html index.html
+```
+
+## Vérifier la copie
+
+``` bash
+cmp TIM_POP_ACCPM_analysis_AS.html index.html && echo "HTML OK — fichiers identiques"
+```
+
+## Vérifier les fichiers Git
+
+``` bash
+git status
+```
+
+------------------------------------------------------------------------
+
+# 11. Commande rapide
+
+Lorsque la procédure fonctionne normalement, Render et création de `index.html` peuvent être effectués en une seule commande :
+
+``` bash
+quarto render TIM_POP_ACCPM_analysis_AS.qmd --no-cache && \
+cp -f TIM_POP_ACCPM_analysis_AS.html index.html
+```
+
+Puis :
+
+``` bash
+open index.html
+```
+
+Après vérification :
+
+``` text
+GitHub Desktop
+→ Commit to main
+→ Push origin
+```
+
+------------------------------------------------------------------------
+
+# 12. En cas de problème d'affichage GitHub Pages
+
+Si le site apparaît sans mise en forme Quarto, vérifier d'abord que le HTML est autonome :
+
+``` bash
+grep -o 'TIM_POP_ACCPM_analysis_AS_files[^"]*' TIM_POP_ACCPM_analysis_AS.html | head
+```
+
+### Résultat normal
+
+La commande ne doit rien retourner.
+
+Si elle retourne des chemins tels que :
+
+``` text
+TIM_POP_ACCPM_analysis_AS_files/libs/bootstrap/...
+```
+
+le HTML dépend encore de ressources externes locales.
+
+Vérifier alors que le YAML contient :
+
+``` yaml
+embed-resources: true
+```
+
+Puis refaire :
+
+``` bash
+quarto render TIM_POP_ACCPM_analysis_AS.qmd --no-cache
+```
+
+et recommencer la copie :
+
+``` bash
+cp -f TIM_POP_ACCPM_analysis_AS.html index.html
+```
+
+------------------------------------------------------------------------
+
+# 13. En cas de GitHub Desktop vide
+
+Vérifier que **Current Repository** correspond bien à :
+
+``` text
+THESE_TBARTHES
+```
+
+et surtout au dossier :
+
+``` text
+/Users/Alexandre/Desktop/these_tim_barthes/TIM_POP_PreEOT_ACCPM
+```
+
+Puis dans le Terminal :
+
+``` bash
+pwd
+git status
+```
+
+Le `pwd` attendu est :
+
+``` text
+/Users/Alexandre/Desktop/these_tim_barthes/TIM_POP_PreEOT_ACCPM
+```
+
+------------------------------------------------------------------------
+
+# 14. Règle de sécurité
+
+Le dépôt GitHub peut contenir le rapport HTML, le QMD et les figures destinées à être partagées.
+
+En revanche, **aucune donnée patient directement ou indirectement identifiable ne doit être publiée**.
+
+Avant chaque Push, toujours regarder :
+
+``` bash
+git status
+```
+
+et vérifier la liste des fichiers dans GitHub Desktop.
+
+------------------------------------------------------------------------
+
+# Mémo ultra-court
+
+``` bash
+quarto render TIM_POP_ACCPM_analysis_AS.qmd --no-cache
+
+open TIM_POP_ACCPM_analysis_AS.html
+
+cp -f TIM_POP_ACCPM_analysis_AS.html index.html
+
+git status
+```
+
+Puis :
+
+``` text
+GitHub Desktop
+→ Commit to main
+→ Push origin
+```
+
+Enfin vérifier :
+
+``` text
+https://alxstbn.github.io/THESE_TBARTHES/
+```
